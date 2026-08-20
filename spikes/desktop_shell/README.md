@@ -84,7 +84,9 @@ Task 0 can close.
 
 The Settings window opens once at startup. Choose `Locked (pass-through)` to
 test pointer pass-through, or `Interaction` to click the local Dashboard
-button. Stop the process with Ctrl+C in the launching console after testing;
+button. Use the two `Resize Dashboard` buttons to alternate between 900 × 560
+and 600 × 420 while checking that GridStack coordinates do not reflow. Stop
+the process with Ctrl+C in the launching console after testing;
 the evidence helper
 prints a JSON object containing the path to:
 

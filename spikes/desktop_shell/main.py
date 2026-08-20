@@ -149,6 +149,15 @@ class SettingsWindow(QMainWindow):
         visibility_row.addWidget(hide_button)
         layout.addLayout(visibility_row)
 
+        resize_row = QHBoxLayout()
+        wide_button = QPushButton("Resize Dashboard: 900 × 560")
+        wide_button.clicked.connect(lambda: dashboard.resize_dashboard(900, 560))
+        narrow_button = QPushButton("Resize Dashboard: 600 × 420")
+        narrow_button.clicked.connect(lambda: dashboard.resize_dashboard(600, 420))
+        resize_row.addWidget(wide_button)
+        resize_row.addWidget(narrow_button)
+        layout.addLayout(resize_row)
+
         self.status_label = QLabel()
         self.status_label.setWordWrap(True)
         layout.addWidget(self.status_label)
@@ -276,6 +285,16 @@ class DashboardWindow(QMainWindow):
     def hide_dashboard(self) -> None:
         self.hide()
         self.evidence.record("dashboard_visibility", visible=False)
+        self.stateChanged.emit()
+
+    @Slot(int, int)
+    def resize_dashboard(self, width: int, height: int) -> None:
+        self.resize(width, height)
+        self.evidence.record(
+            "dashboard_resized",
+            width=self.width(),
+            height=self.height(),
+        )
         self.stateChanged.emit()
 
     @Slot()
