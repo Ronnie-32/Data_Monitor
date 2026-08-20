@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DeskBoard Task 0 Dashboard</title>
+    <link rel="stylesheet" href="vendor/gridstack/gridstack.min.css">
+    <style>
+      :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; }
+      body { padding: 14px; background: rgba(221, 235, 244, .88); color: #193246; }
+      .shell { height: 100%; border: 1px solid rgba(25, 50, 70, .2); border-radius: 14px;
+        padding: 14px; background: rgba(255, 255, 255, .74); box-shadow: 0 8px 24px rgba(25, 50, 70, .14); }
+      header { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+      h1 { margin: 0; font-size: 19px; }
+      #bridge-state { margin: 0; font-size: 12px; color: #426277; text-align: right; }
+      .grid-stack { min-height: 330px; --gs-item-margin-top: 6px; --gs-item-margin-bottom: 6px;
+        --gs-item-margin-left: 6px; --gs-item-margin-right: 6px; }
+      .grid-stack-item-content { display: flex; flex-direction: column; justify-content: center;
+        padding: 16px; border: 1px solid rgba(25, 50, 70, .16); border-radius: 10px;
+        background: rgba(247, 251, 253, .92); }
+      .widget-label { font-size: 12px; color: #547085; text-transform: uppercase; letter-spacing: .08em; }
+      .widget-value { margin-top: 8px; font-size: 21px; font-weight: 600; }
+      .widget-note { margin-top: 6px; font-size: 12px; color: #547085; }
+      footer { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-top: 10px; }
+      button { border: 1px solid #82a4b8; border-radius: 7px; padding: 7px 12px; background: white; color: #193246; }
+      button:hover { background: #edf6fb; }
+      #topology { font-size: 12px; color: #547085; }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <h1>DeskBoard shell spike</h1>
+        <p id="bridge-state">Connecting to local QWebChannel…</p>
+      </header>
+
+      <!-- Coordinates are deliberately fixed in a 12-column grid. -->
+      <section class="grid-stack gs-12" aria-label="Three fixed test widgets">
+        <article class="grid-stack-item" gs-x="0" gs-y="0" gs-w="4" gs-h="2" data-widget="weather">
+          <div class="grid-stack-item-content">
+            <span class="widget-label">Fake widget 1</span><span class="widget-value">Weather</span>
+            <span class="widget-note">x=0, y=0, w=4, h=2</span>
+          </div>
+        </article>
+        <article class="grid-stack-item" gs-x="4" gs-y="0" gs-w="4" gs-h="2" data-widget="todo">
+          <div class="grid-stack-item-content">
+            <span class="widget-label">Fake widget 2</span><span class="widget-value">Todo</span>
+            <span class="widget-note">x=4, y=0, w=4, h=2</span>
+          </div>
+        </article>
+        <article class="grid-stack-item" gs-x="8" gs-y="0" gs-w="4" gs-h="2" data-widget="finance">
+          <div class="grid-stack-item-content">
+            <span class="widget-label">Fake widget 3</span><span class="widget-value">Finance</span>
+            <span class="widget-note">x=8, y=0, w=4, h=2</span>
+          </div>
+        </article>
+      </section>
+
+      <footer>
+        <span id="topology">GridStack: fixed 12 columns; resize the outer window to inspect pixel-only changes.</span>
+        <button id="command" type="button">Send JS command</button>
+      </footer>
+    </main>
+
+    <!-- Both scripts are repository-local. There is no CDN or localhost server. -->
+    <script src="qwebchannel.js"></script>
+    <script src="vendor/gridstack/gridstack-all.js"></script>
+    <script>
+      "use strict";
+      const grid = GridStack.init({
+        column: 12,
+        float: false,
+        disableOneColumnMode: true,
+        animate: false,
+        cellHeight: 100,
+      });
+      // Keep the fixed topology visible in the evidence UI, even if the
+      // outer QWebEngineView is resized to a narrow rectangle.
+      grid.column(12, "none");
+      const state = document.getElementById("bridge-state");
+      const commandButton = document.getElementById("command");
+
+      function showPythonValue(value) {
+        state.textContent = value;
+        state.dataset.source = "python";
+      }
+
+      if (typeof qt === "undefined" || typeof QWebChannel === "undefined") {
+        state.textContent = "QWebChannel local script is unavailable";
+      } else {
+        new QWebChannel(qt.webChannelTransport, (channel) => {
+          const bridge = channel.objects.bridge;
+          bridge.pythonValueChanged.connect(showPythonValue);
+          bridge.currentValue(showPythonValue);
+          bridge.sendCommand("web-channel-ready", (reply) => {
+            state.textContent = reply;
+            state.dataset.source = "python-response";
+          });
+          commandButton.addEventListener("click", () => {
+            bridge.sendCommand("button-click", (reply) => {
+              state.textContent = reply;
+              state.dataset.source = "python-response";
+            });
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
