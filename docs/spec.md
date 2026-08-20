@@ -900,6 +900,10 @@ Primary city and city list are global, not Profile-specific.
 
 Mainland-China city support is required.
 
+The initial V1 mainland-city catalog and acceptance fixtures must include
+Beijing and Shanghai as first-priority supported cities. Their order and which
+one is primary remain user-configurable in Settings.
+
 Overseas-city support is optional and must not block V1.
 
 ### 15.3 Widget behavior

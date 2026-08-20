@@ -1205,6 +1205,7 @@ Use only the matching case definitions from `docs/quality/test-matrix.md`; do no
 Acceptance:
 
 - city list/order/primary city are global rather than Profile-owned;
+- Beijing and Shanghai are included as first-priority supported mainland cities;
 - no weather payload is stored by WeatherRepository;
 - no Weather Dashboard widget/presenter is implemented until Task 17;
 - overseas cities remain optional/non-blocking.
