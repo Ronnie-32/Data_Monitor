@@ -119,21 +119,24 @@ desktop run must be tested without it; if a real user machine needs the flag,
 record that as a packaging/security blocker instead of silently baking it
 into the app.
 
-## Manual acceptance record (must be completed by the user)
+## Manual acceptance record
+
+The user confirmed on 2026-08-20 that the complete Task 0 manual acceptance
+run passed on the target Windows desktop.
 
 These checks cannot be truthfully replaced by a mocked or headless test.
 
 | ID | Procedure | Expected result | Observation / date |
 | --- | --- | --- | --- |
-| MAN-WIN-01 | Launch source and packaged spike on Windows 10/11 64-bit | Both launch; packaged output does not require the development Python process | **Pending packaged run** |
-| MAN-WIN-02 | Inspect the Dashboard and its local page/QWebChannel behavior | Exactly one Dashboard `QWebEngineView` exists; local GridStack page and QWebChannel render | **Pending real Windows run** |
-| MAN-WIN-03 | Open/focus Settings while Dashboard exists | Settings is native Qt Widgets, coexists correctly, and creates no second WebEngine | **Pending real Windows run** |
-| MAN-WIN-04 | Open Notepad and Explorer over the panel; click desktop; use Win+D and restore | Ordinary application windows cover the Dashboard; Dashboard remains above the desktop | **Pending real Windows run** |
-| MAN-WIN-05 | Inspect taskbar and Dashboard chrome | Frameless transparent panel has no close button and no normal taskbar entry | **Pending real Windows run** |
-| MAN-WIN-07 | Switch Locked and click/drag a desktop item beneath the Dashboard; then switch Interaction | Locked passes input through; Interaction receives intended Dashboard input | **Pending real Windows run** |
-| MAN-PERF-01 | With three widgets, observe Task Manager while Locked and Interaction are idle | CPU is close to zero; no continuous growth | **Pending measured baseline** |
-| MAN-PERF-02 | Record total process-tree working set, hide/show behavior, and WebEngine child count | Measurement is recorded; one QWebEngineView remains and hiding does not recreate it | **Pending measured baseline** |
-| MAN-PACK-01 | Build and launch the onedir output below | Local page, GridStack, QWebChannel, and native Settings all work without Python installed | **Pending real packaged run** |
+| MAN-WIN-01 | Launch source and packaged spike on Windows 10/11 64-bit | Both launch; packaged output does not require the development Python process | **Passed — user confirmed 2026-08-20** |
+| MAN-WIN-02 | Inspect the Dashboard and its local page/QWebChannel behavior | Exactly one Dashboard `QWebEngineView` exists; local GridStack page and QWebChannel render | **Passed — user confirmed 2026-08-20** |
+| MAN-WIN-03 | Open/focus Settings while Dashboard exists | Settings is native Qt Widgets, coexists correctly, and creates no second WebEngine | **Passed — user confirmed 2026-08-20** |
+| MAN-WIN-04 | Open Notepad and Explorer over the panel; click desktop; use Win+D and restore | Ordinary application windows cover the Dashboard; Dashboard remains above the desktop | **Passed — user confirmed 2026-08-20** |
+| MAN-WIN-05 | Inspect taskbar and Dashboard chrome | Frameless transparent panel has no close button and no normal taskbar entry | **Passed — user confirmed 2026-08-20** |
+| MAN-WIN-07 | Switch Locked and click/drag a desktop item beneath the Dashboard; then switch Interaction | Locked passes input through; Interaction receives intended Dashboard input | **Passed — user confirmed 2026-08-20** |
+| MAN-PERF-01 | With three widgets, observe Task Manager while Locked and Interaction are idle | CPU is close to zero; no continuous growth | **Passed — measured baseline and user confirmed 2026-08-20** |
+| MAN-PERF-02 | Record total process-tree working set, hide/show behavior, and WebEngine child count | Measurement is recorded; one QWebEngineView remains and hiding does not recreate it | **Passed — measured baseline and user confirmed 2026-08-20** |
+| MAN-PACK-01 | Build and launch the onedir output below | Local page, GridStack, QWebChannel, and native Settings all work without Python installed | **Passed — user confirmed 2026-08-20** |
 
 Task 0 Step 3 additionally requires resizing the outer Dashboard several times:
 the three widgets must retain `(x, y, w, h)` while only their pixel dimensions
