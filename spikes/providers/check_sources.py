@@ -31,6 +31,7 @@ WEATHER_CITIES = {
     "shanghai": ("上海", "101020100"),
 }
 WEATHER_URL = "http://d1.weather.com.cn/weather_index/{city_id}.html"
+WEATHER_FORECAST_URL = "http://www.weather.com.cn/weather/{city_id}.shtml"
 SGE_DAILY_URL = "https://www.sge.com.cn/sjzx/quotation_daily_new"
 CHINAMONEY_URL = "https://www.chinamoney.com.cn/ags/ms/cm-u-bk-ccpr/CcprHisNew"
 INDEX_URL = (
@@ -41,6 +42,8 @@ INDEX_URL = (
 FIXTURE_NAMES = {
     "weather_beijing": "weather_com_cn_beijing.html",
     "weather_shanghai": "weather_com_cn_shanghai.html",
+    "weather_forecast_beijing": "weather_com_cn_beijing_forecast.html",
+    "weather_forecast_shanghai": "weather_com_cn_shanghai_forecast.html",
     "gold": "sge_au9999_daily.html",
     "fx": "chinamoney_ccpr_his_new.json",
     "indices": "tencent_indices_gbk.txt",
@@ -99,14 +102,31 @@ def _weather_object(text: str, variable: str) -> dict[str, Any]:
     return value
 
 
-def parse_weather(raw: bytes, *, city_key: str) -> dict[str, Any]:
+def _forecast_temperatures(raw: bytes) -> tuple[float, float]:
+    text = raw.decode("utf-8", errors="replace")
+    list_start = text.find('<ul class="t clearfix">')
+    first_day_end = text.find("</li>", list_start)
+    if list_start < 0 or first_day_end < 0:
+        raise ValueError("weather forecast page lacks today's row")
+    today = text[list_start:first_day_end]
+    match = re.search(
+        r'<p class="tem">\s*<span>([-+]?\d+(?:\.\d+)?)</span>\s*/\s*'
+        r'<i>([-+]?\d+(?:\.\d+)?)℃</i>',
+        today,
+        re.S,
+    )
+    if not match:
+        raise ValueError("weather forecast page lacks today's high/low")
+    return _number(match.group(1), field="high"), _number(match.group(2), field="low")
+
+
+def parse_weather(raw: bytes, forecast_raw: bytes, *, city_key: str) -> dict[str, Any]:
     city_name, city_id = WEATHER_CITIES[city_key]
     text = _decode(raw)
     current = _weather_object(text, "dataSK")
-    forecast = _weather_object(text, "cityDZ").get("weatherinfo", {})
-    if not isinstance(forecast, dict):
-        raise ValueError("weatherinfo is not an object")
-    condition = str(current.get("weather") or forecast.get("weather") or "").strip()
+    high, low = _forecast_temperatures(forecast_raw)
+    current_temperature = _number(current.get("temp"), field="current temperature")
+    condition = str(current.get("weather") or "").strip()
     wind = " ".join(
         str(current.get(key, "")).strip() for key in ("WD", "WS") if current.get(key)
     )
@@ -116,9 +136,12 @@ def parse_weather(raw: bytes, *, city_key: str) -> dict[str, Any]:
         "city": city_name,
         "city_id": city_id,
         "condition": condition,
-        "current_temperature": _number(current.get("temp"), field="current temperature"),
-        "high": _number(forecast.get("temp"), field="high"),
-        "low": _number(forecast.get("tempn"), field="low"),
+        "current_temperature": current_temperature,
+        "high": max(high, current_temperature),
+        "low": min(low, current_temperature),
+        "forecast_high": high,
+        "forecast_low": low,
+        "temperature_envelope": "observed current expands forecast bounds",
         "wind": wind,
         "temperature_unit": "°C",
     }
@@ -276,6 +299,14 @@ def _acquire(as_of: date) -> dict[str, bytes]:
         f"weather_{key}": fetch(WEATHER_URL.format(city_id=city_id))
         for key, (_, city_id) in WEATHER_CITIES.items()
     }
+    raws.update(
+        {
+            f"weather_forecast_{key}": fetch(
+                WEATHER_FORECAST_URL.format(city_id=city_id)
+            )
+            for key, (_, city_id) in WEATHER_CITIES.items()
+        }
+    )
     raws["gold"] = _fetch_gold(as_of)
     raws["fx"] = fetch(_fx_url(as_of))
     raws["indices"] = fetch(INDEX_URL)
@@ -286,7 +317,11 @@ def _run(raws: dict[str, bytes]) -> int:
     failures: list[str] = []
     for city_key in WEATHER_CITIES:
         try:
-            result = parse_weather(raws[f"weather_{city_key}"], city_key=city_key)
+            result = parse_weather(
+                raws[f"weather_{city_key}"],
+                raws[f"weather_forecast_{city_key}"],
+                city_key=city_key,
+            )
             print(f"PASS weather/{city_key}: {_sample(result)}")
         except (KeyError, ValueError) as exc:
             failures.append(f"weather/{city_key}: {exc}")

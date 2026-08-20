@@ -19,7 +19,7 @@
 
 | 类别 | 来源 | 归一化结果 | Task 1 状态 |
 |---|---|---|---|
-| Weather | 中国天气网城市天气索引；北京 `101010100`、上海 `101020100` | condition、当前/最高/最低温度、风向风力；°C | 两城均强制验证 |
+| Weather | 中国天气网城市天气索引 + 同站正式逐日预报页；北京 `101010100`、上海 `101020100` | 索引取实况 condition/current/wind，逐日页取当天预测 high/low；归一化区间再用当前实况扩展，保证 `low <= current <= high`；°C | 两城均强制验证；避免简版索引高低温失真 |
 | Gold | 上海黄金交易所每日行情页 | Au99.99 每日收盘价、涨跌、涨跌幅；CNY/g | 必选；周末/节假日只在同一来源内有限回看 10 天 |
 | FX | 中国外汇交易中心 `CcprHisNew` | USD/EUR/JPY/HKD 统一为每 1 外币对应 CNY；上游 `100JPY/CNY` 除以 100 | 必选；查询最近 14 天记录 |
 | A-share indices | 腾讯公开批量报价 | 上证、深证成指、创业板、沪深300的点位、涨跌、涨跌幅 | 必选候选 |
@@ -28,6 +28,7 @@
 固定入口：
 
 - Weather: `http://d1.weather.com.cn/weather_index/{city_id}.html`
+- Weather daily high/low: `http://www.weather.com.cn/weather/{city_id}.shtml`
 - Gold: `https://www.sge.com.cn/sjzx/quotation_daily_new`
 - FX: `https://www.chinamoney.com.cn/ags/ms/cm-u-bk-ccpr/CcprHisNew`
 - Indices: `https://qt.gtimg.cn/q=s_sh000001,s_sz399001,s_sz399006,sh000300,us.DJI,us.INX,us.IXIC`
