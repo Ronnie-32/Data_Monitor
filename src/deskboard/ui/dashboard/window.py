@@ -13,7 +13,8 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
 
 from deskboard.app.modes import AppMode
-from deskboard.ui.dashboard.bridge import DashboardBridge
+from deskboard.infrastructure.clock import Clock
+from deskboard.ui.dashboard.bridge import DashboardBridge, TodoServiceLike
 
 WM_NCHITTEST = 0x0084
 HTCAPTION = 2
@@ -116,7 +117,12 @@ def native_hit_test(
 class DashboardWindow(QMainWindow):
     """Small desktop panel; widget rendering remains intentionally empty."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        todo_service: TodoServiceLike | None = None,
+        clock: Clock | None = None,
+    ) -> None:
         super().__init__()
         self._mode = AppMode.INTERACTION
         self._layout_window_state: bool | None = None
@@ -127,7 +133,7 @@ class DashboardWindow(QMainWindow):
         self.view = QWebEngineView(self)
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setCentralWidget(self.view)
-        self.bridge = DashboardBridge(self)
+        self.bridge = DashboardBridge(self, todo_service=todo_service, clock=clock)
         self.channel = QWebChannel(self.view.page())
         self.channel.registerObject("bridge", self.bridge)
         self.view.page().setWebChannel(self.channel)

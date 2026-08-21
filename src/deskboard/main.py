@@ -29,9 +29,16 @@ def initialize_runtime() -> Runtime:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv if argv is None else argv)
-    initialize_runtime()
+    runtime = initialize_runtime()
     from PySide6.QtCore import QTimer
     from PySide6.QtWidgets import QApplication
+
+    from deskboard.database.connection import connect_database
+    from deskboard.database.schema import migrate
+    from deskboard.infrastructure.clock import SystemClock
+    from deskboard.repositories.todo_repository import TodoRepository
+    from deskboard.services.todo_service import TodoService
+    from deskboard.ui.dashboard.window import DashboardWindow
 
     qt_application = QApplication.instance() or QApplication(arguments)
     qt_application.setApplicationName("DeskBoard")
@@ -42,8 +49,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     if instance_guard.start() is InstanceRole.SECONDARY:
         return 0
+    connection = connect_database(runtime.paths.database)
+    migrate(connection)
+    clock = SystemClock()
+    todo_service = TodoService(TodoRepository(connection), clock)
+    qt_application.aboutToQuit.connect(connection.close)
     application = DeskBoardApplication(
         as_qt_application(qt_application),
+        dashboard_factory=lambda: DashboardWindow(
+            todo_service=todo_service,
+            clock=clock,
+        ),
         instance_guard=instance_guard,
     )
     application_holder.append(application)
