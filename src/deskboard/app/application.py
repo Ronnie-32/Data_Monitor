@@ -13,11 +13,15 @@ class QtApplicationLike(Protocol):
 
     def exec(self) -> int: ...
 
+    def quit(self) -> None: ...
+
 
 class DashboardLike(Protocol):
     def show(self) -> None: ...
 
     def hide(self) -> None: ...
+
+    def isVisible(self) -> bool: ...  # noqa: N802
 
     def set_mode(self, mode: AppMode) -> None: ...
 
@@ -35,8 +39,32 @@ class SettingsLike(Protocol):
 
 
 SettingsFactory = Callable[
-    [Callable[[AppMode], None], Callable[[], None], Callable[[], None]],
+    [Callable[[AppMode], None], Callable[[], None], Callable[[], None], Callable[[], None]],
     SettingsLike,
+]
+
+
+class TrayLike(Protocol):
+    def show(self) -> None: ...
+
+    def hide(self) -> None: ...
+
+    def sync_dashboard_visibility(self, visible: bool) -> None: ...
+
+
+class InstanceGuardLike(Protocol):
+    def close(self) -> None: ...
+
+
+TrayFactory = Callable[
+    [
+        Callable[[], None],
+        Callable[[], None],
+        Callable[[], None],
+        Callable[[], None],
+        Callable[[], None],
+    ],
+    TrayLike,
 ]
 
 
@@ -49,8 +77,11 @@ class DeskBoardApplication:
         *,
         dashboard_factory: Callable[[], DashboardLike] | None = None,
         settings_factory: SettingsFactory | None = None,
+        tray_factory: TrayFactory | None = None,
+        instance_guard: InstanceGuardLike,
     ) -> None:
         self.qt_application = qt_application
+        self.instance_guard = instance_guard
         self.qt_application.setQuitOnLastWindowClosed(False)
         self._dashboard_factory = dashboard_factory or self._default_dashboard_factory
         self._settings_factory = settings_factory or self._default_settings_factory
@@ -58,6 +89,15 @@ class DeskBoardApplication:
         self._settings: SettingsLike | None = None
         self._mode = AppMode.INTERACTION
         self._started = False
+        self._exiting = False
+        selected_tray_factory = tray_factory or self._default_tray_factory
+        self.tray = selected_tray_factory(
+            self.toggle_dashboard,
+            lambda: self.set_mode(AppMode.LOCKED),
+            lambda: self.set_mode(AppMode.INTERACTION),
+            self.show_settings,
+            self.exit,
+        )
         bridge = getattr(self.dashboard, "bridge", None)
         if bridge is not None:
             bridge.settingsRequested.connect(self.show_settings)
@@ -73,10 +113,34 @@ class DeskBoardApplication:
         set_mode: Callable[[AppMode], None],
         show_dashboard: Callable[[], None],
         hide_dashboard: Callable[[], None],
+        exit_application: Callable[[], None],
     ) -> SettingsLike:
         from deskboard.ui.settings.window import SettingsWindow
 
-        return SettingsWindow(set_mode, show_dashboard, hide_dashboard)
+        return SettingsWindow(
+            set_mode,
+            show_dashboard,
+            hide_dashboard,
+            exit_application,
+        )
+
+    @staticmethod
+    def _default_tray_factory(
+        toggle_dashboard: Callable[[], None],
+        set_locked: Callable[[], None],
+        set_interaction: Callable[[], None],
+        show_settings: Callable[[], None],
+        exit_application: Callable[[], None],
+    ) -> TrayLike:
+        from deskboard.ui.tray.tray_icon import TrayIcon
+
+        return TrayIcon(
+            toggle_dashboard,
+            set_locked,
+            set_interaction,
+            show_settings,
+            exit_application,
+        )
 
     @property
     def mode(self) -> AppMode:
@@ -89,6 +153,7 @@ class DeskBoardApplication:
                 self.set_mode,
                 self.show_dashboard,
                 self.hide_dashboard,
+                self.exit,
             )
         return self._settings
 
@@ -97,6 +162,8 @@ class DeskBoardApplication:
         if not self._started:
             self.set_mode(AppMode.INTERACTION)
             self.dashboard.show()
+            self.tray.sync_dashboard_visibility(True)
+            self.tray.show()
             self._started = True
         if open_settings:
             self.show_settings()
@@ -114,9 +181,17 @@ class DeskBoardApplication:
 
     def show_dashboard(self) -> None:
         self.dashboard.show()
+        self.tray.sync_dashboard_visibility(True)
 
     def hide_dashboard(self) -> None:
         self.dashboard.hide()
+        self.tray.sync_dashboard_visibility(False)
+
+    def toggle_dashboard(self) -> None:
+        if self.dashboard.isVisible():
+            self.hide_dashboard()
+        else:
+            self.show_dashboard()
 
     def show_settings(self) -> None:
         settings = self.settings
@@ -128,6 +203,16 @@ class DeskBoardApplication:
     def close_settings(self) -> None:
         if self._settings is not None:
             self._settings.close()
+
+    def exit(self) -> None:
+        if self._exiting:
+            return
+        self._exiting = True
+        self.instance_guard.close()
+        self.close_settings()
+        self.dashboard.hide()
+        self.tray.hide()
+        self.qt_application.quit()
 
     def __repr__(self) -> str:
         return f"DeskBoardApplication(mode={self._mode.value!r}, started={self._started!r})"

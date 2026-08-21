@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 
 from deskboard.app.application import DeskBoardApplication, as_qt_application
+from deskboard.app.single_instance import InstanceRole, SingleInstanceGuard
 from deskboard.infrastructure.logging_setup import configure_logging
 from deskboard.infrastructure.paths import RuntimePaths, ensure_runtime_dirs
 
@@ -13,6 +14,9 @@ from deskboard.infrastructure.paths import RuntimePaths, ensure_runtime_dirs
 @dataclass(frozen=True)
 class Runtime:
     paths: RuntimePaths
+
+
+SINGLE_INSTANCE_SERVER_NAME = "DeskBoard.SingleInstance.v1"
 
 
 def initialize_runtime() -> Runtime:
@@ -31,7 +35,18 @@ def main(argv: list[str] | None = None) -> int:
 
     qt_application = QApplication.instance() or QApplication(arguments)
     qt_application.setApplicationName("DeskBoard")
-    application = DeskBoardApplication(as_qt_application(qt_application))
+    application_holder: list[DeskBoardApplication] = []
+    instance_guard = SingleInstanceGuard(
+        SINGLE_INSTANCE_SERVER_NAME,
+        lambda: application_holder[0].show_settings() if application_holder else None,
+    )
+    if instance_guard.start() is InstanceRole.SECONDARY:
+        return 0
+    application = DeskBoardApplication(
+        as_qt_application(qt_application),
+        instance_guard=instance_guard,
+    )
+    application_holder.append(application)
     application.start(open_settings=False)
     if "--smoke" in arguments:
         QTimer.singleShot(2_000, qt_application.quit)

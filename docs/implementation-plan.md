@@ -494,8 +494,10 @@ Acceptance:
 - Create: `src/deskboard/app/single_instance.py`
 - Modify: `src/deskboard/app/application.py`
 - Modify: `src/deskboard/main.py`
+- Modify: `src/deskboard/ui/settings/window.py`
 - Create: `tests/unit/app/test_single_instance_contract.py`
 - Create: `tests/unit/ui/test_tray_action_contract.py`
+- Modify: `tests/unit/app/test_application_lifecycle.py`
 
 **Produces:**
 - tray left-click opens Settings;
@@ -510,7 +512,7 @@ Acceptance:
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
 - [ ] **Step 1: Write failing tray-action and single-instance contract tests where Qt-independent**
-- [ ] **Step 2: Implement tray behavior without Profile/refresh/layout-edit actions**
+- [ ] **Step 2: Implement tray behavior and both approved Exit entry points (tray and Settings General) without Profile/refresh/layout-edit actions**
 - [ ] **Step 3: Implement single-instance guard and second-launch handoff**
 - [ ] **Step 4: Run focused tests and `ruff check`**
 - [ ] **Step 5: Perform real Windows shell acceptance: Show/Hide, Locked/Interaction, Settings, Exit, and second-launch behavior**
@@ -520,6 +522,7 @@ Acceptance:
 
 - second process never creates a second Dashboard/tray/refresh lifecycle;
 - tray remains intentionally minimal;
+- tray Exit and Settings General Exit both terminate DeskBoard cleanly, satisfying `MAN-WIN-10`;
 - Dashboard shell behavior still matches Task 0's validated Windows layering strategy.
 
 

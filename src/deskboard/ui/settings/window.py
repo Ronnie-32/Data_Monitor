@@ -36,6 +36,7 @@ class SettingsWindow(QMainWindow):
         set_mode: Callable[[AppMode], None],
         show_dashboard: Callable[[], None],
         hide_dashboard: Callable[[], None],
+        exit_application: Callable[[], None],
     ) -> None:
         super().__init__()
         self._set_mode = set_mode
@@ -50,7 +51,14 @@ class SettingsWindow(QMainWindow):
         self.navigation.setFixedWidth(150)
         for title in self.PAGE_TITLES:
             self.navigation.addItem(title)
-            self.pages.addWidget(self._build_page(title, show_dashboard, hide_dashboard))
+            self.pages.addWidget(
+                self._build_page(
+                    title,
+                    show_dashboard,
+                    hide_dashboard,
+                    exit_application,
+                )
+            )
         self.navigation.currentRowChanged.connect(self.pages.setCurrentIndex)
         self.navigation.setCurrentRow(0)
         layout.addWidget(self.navigation)
@@ -62,6 +70,7 @@ class SettingsWindow(QMainWindow):
         title: str,
         show_dashboard: Callable[[], None],
         hide_dashboard: Callable[[], None],
+        exit_application: Callable[[], None],
     ) -> QWidget:
         page = QWidget(self)
         layout = QVBoxLayout(page)
@@ -76,6 +85,7 @@ class SettingsWindow(QMainWindow):
                 ("Locked", lambda: self._set_mode(AppMode.LOCKED)),
                 ("Interaction", lambda: self._set_mode(AppMode.INTERACTION)),
                 ("Layout Edit", lambda: self._set_mode(AppMode.LAYOUT_EDIT)),
+                ("Exit DeskBoard", exit_application),
             ):
                 button = QPushButton(label, page)
                 button.clicked.connect(callback)
