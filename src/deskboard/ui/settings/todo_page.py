@@ -186,4 +186,4 @@ class TodoPage(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )
-        return result is QMessageBox.StandardButton.Yes
+        return result == QMessageBox.StandardButton.Yes

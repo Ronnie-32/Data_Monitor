@@ -98,6 +98,28 @@ def test_default_delete_confirmation_is_cancel_safe(monkeypatch):
     del app
 
 
+def test_delete_accepts_equivalent_yes_value_from_qt(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    migrate(connection)
+    service = TodoService(TodoRepository(connection), FakeClock())
+    todo = service.add_quick("Delete me")
+    page = TodoPage(service, FakeClock())
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *_args: int(QMessageBox.StandardButton.Yes),
+    )
+
+    assert page.delete_todo(todo.id) is True
+    assert service.get_incomplete_items() == []
+    page.close()
+    connection.close()
+    del app
+
+
 def test_hidden_settings_delete_uses_top_level_confirmation_and_deletes(monkeypatch):
     app = QApplication.instance() or QApplication([])
     connection = sqlite3.connect(":memory:")
