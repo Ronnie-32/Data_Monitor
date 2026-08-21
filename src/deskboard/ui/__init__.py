@@ -1,0 +1,1 @@
+"""DeskBoard user-interface adapters."""

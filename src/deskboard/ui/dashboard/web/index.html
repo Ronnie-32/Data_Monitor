@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeskBoard</title>
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; background: transparent; }
+    body { padding: 12px; color: #243044; }
+    main {
+      width: 100%; height: 100%; padding: 24px; border: 1px solid rgba(94, 116, 145, .22);
+      border-radius: 18px; background: rgba(247, 250, 255, .94);
+      box-shadow: 0 12px 36px rgba(49, 67, 91, .14);
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    p { margin: 0; color: #64748b; }
+    button { border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+    #settings { margin-top: 20px; background: #dbeafe; color: #1e3a8a; }
+    #edit-toolbar { display: none; gap: 8px; margin-top: 18px; }
+    body[data-mode="layout_edit"] #edit-toolbar { display: flex; }
+    #mode { display: inline-block; margin-top: 14px; padding: 4px 8px; border-radius: 6px; background: #eef2f7; }
+  </style>
+</head>
+<body data-mode="interaction">
+  <main>
+    <h1>DeskBoard</h1>
+    <p>本地 Dashboard 壳已加载。业务组件将在后续任务中加入。</p>
+    <div id="mode">interaction</div><br>
+    <button id="settings" type="button">打开设置</button>
+    <div id="edit-toolbar">
+      <button id="move" type="button">移动看板</button>
+      <button id="resize" type="button">调整大小</button>
+    </div>
+  </main>
+  <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+  <script>
+    new QWebChannel(qt.webChannelTransport, function (channel) {
+      const bridge = channel.objects.bridge;
+      const applyMode = function (mode) {
+        document.body.dataset.mode = mode;
+        document.getElementById("mode").textContent = mode;
+      };
+      bridge.modeChanged.connect(applyMode);
+      document.getElementById("settings").addEventListener("click", function () {
+        bridge.openSettings();
+      });
+      document.getElementById("move").addEventListener("mousedown", function () {
+        bridge.beginWindowMove();
+      });
+      document.getElementById("resize").addEventListener("mousedown", function () {
+        bridge.beginWindowResize();
+      });
+      bridge.notifyReady();
+    });
+  </script>
+</body>
+</html>

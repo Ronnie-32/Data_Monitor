@@ -1,13 +1,11 @@
-"""Minimal application bootstrap for Task 2.
-
-The GUI lifecycle is intentionally deferred to Task 3.  This module only
-initializes the runtime directories and logging infrastructure.
-"""
+"""DeskBoard application entry point."""
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 
+from deskboard.app.application import DeskBoardApplication, as_qt_application
 from deskboard.infrastructure.logging_setup import configure_logging
 from deskboard.infrastructure.paths import RuntimePaths, ensure_runtime_dirs
 
@@ -25,6 +23,16 @@ def initialize_runtime() -> Runtime:
     return Runtime(paths=paths)
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    arguments = list(sys.argv if argv is None else argv)
     initialize_runtime()
-    return 0
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication
+
+    qt_application = QApplication.instance() or QApplication(arguments)
+    qt_application.setApplicationName("DeskBoard")
+    application = DeskBoardApplication(as_qt_application(qt_application))
+    application.start(open_settings=False)
+    if "--smoke" in arguments:
+        QTimer.singleShot(2_000, qt_application.quit)
+    return application.run()
