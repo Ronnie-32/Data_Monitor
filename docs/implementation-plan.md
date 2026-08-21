@@ -796,15 +796,15 @@ plus CRUD methods required by Settings for semesters/courses/one-offs/periods.
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1: Write failing tests for Monday-based teaching-week calculation and prove zero active semester is valid, one active semester is valid, and two active semesters cannot be represented**
-- [ ] **Step 2: Write failing recurring-course occurrence tests**
-- [ ] **Step 3: Write failing cancellation tests**
-- [ ] **Step 4: Write failing one-off/reschedule tests, including outside teaching range: `get_teaching_week()` returns `None`, recurring occurrence is absent, and a matching explicit-date one-off remains present**
-- [ ] **Step 5: Write failing global-period validation tests proving a saved active configuration must contain exactly unique period numbers 1..8, rejects partial/duplicate/0/9 configurations, and requires `end_time > start_time`; an initially unconfigured set is valid and must not invent default school times**
-- [ ] **Step 6: Implement repository/service minimally**
-- [ ] **Step 7: Run Course tests**
-- [ ] **Step 8: Run relevant database cascade tests**
-- [ ] **Step 9: Stop**
+- [x] **Step 1: Write failing tests for Monday-based teaching-week calculation and prove zero active semester is valid, one active semester is valid, and two active semesters cannot be represented**
+- [x] **Step 2: Write failing recurring-course occurrence tests**
+- [x] **Step 3: Write failing cancellation tests**
+- [x] **Step 4: Write failing one-off/reschedule tests, including outside teaching range: `get_teaching_week()` returns `None`, recurring occurrence is absent, and a matching explicit-date one-off remains present**
+- [x] **Step 5: Write failing global-period validation tests proving a saved active configuration must contain exactly unique period numbers 1..8, rejects partial/duplicate/0/9 configurations, and requires `end_time > start_time`; an initially unconfigured set is valid and must not invent default school times**
+- [x] **Step 6: Implement repository/service minimally**
+- [x] **Step 7: Run Course tests**
+- [x] **Step 8: Run relevant database cascade tests**
+- [x] **Step 9: Stop**
 
 Acceptance:
 
