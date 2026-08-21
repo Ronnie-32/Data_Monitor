@@ -737,15 +737,15 @@ requestDeleteTodo(todo_id)
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1: Write failing editor validation tests for deadline/planned-date/point/range semantics where Qt-independent**
-- [ ] **Step 2: Implement the native Todo editor using Qt date/time controls**
-- [ ] **Step 3: Implement right-click `Edit details`, complete/uncomplete, and `Delete` commands**
-- [ ] **Step 4: Implement native delete confirmation before permanent delete**
-- [ ] **Step 5: Implement Settings Todo page with explicit Incomplete and Completed-history lists**
-- [ ] **Step 6: Implement restore-to-incomplete and confirmed permanent delete from completed history**
-- [ ] **Step 7: Run focused automated verification**
-- [ ] **Step 8: Perform bounded native dialog/Settings manual acceptance**
-- [ ] **Step 9: Stop**
+- [x] **Step 1: Write failing editor validation tests for deadline/planned-date/point/range semantics where Qt-independent**
+- [x] **Step 2: Implement the native Todo editor using Qt date/time controls**
+- [x] **Step 3: Implement right-click `Edit details`, complete/uncomplete, and `Delete` commands**
+- [x] **Step 4: Implement native delete confirmation before permanent delete**
+- [x] **Step 5: Implement Settings Todo page with explicit Incomplete and Completed-history lists**
+- [x] **Step 6: Implement restore-to-incomplete and confirmed permanent delete from completed history**
+- [x] **Step 7: Run focused automated verification**
+- [x] **Step 8: Perform bounded native dialog/Settings manual acceptance**
+- [x] **Step 9: Stop**
 
 Acceptance:
 
