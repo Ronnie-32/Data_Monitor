@@ -30,6 +30,9 @@ def test_dashboard_declares_exactly_one_webengine_view_and_local_page():
     assert "setMinimumSize(" not in text
     assert "qrc:///qtwebchannel/qwebchannel.js" in html
     assert "bridge.notifyReady()" in html
+    assert 'id="edit-dragbar"' in html
+    assert "beginWindowMove" not in html
+    assert "beginWindowResize" not in html
     assert "http://" not in html
     assert "https://" not in html
 

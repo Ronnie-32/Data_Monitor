@@ -18,21 +18,24 @@
     p { margin: 0; color: #64748b; }
     button { border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
     #settings { margin-top: 20px; background: #dbeafe; color: #1e3a8a; }
-    #edit-toolbar { display: none; gap: 8px; margin-top: 18px; }
-    body[data-mode="layout_edit"] #edit-toolbar { display: flex; }
+    #edit-dragbar {
+      display: none; position: fixed; top: 8px; left: 18px; right: 18px; height: 30px;
+      align-items: center; justify-content: center; border-radius: 8px;
+      background: rgba(37, 99, 235, .12); color: #1e3a8a; cursor: move;
+      pointer-events: none; font-size: 12px; font-weight: 600;
+    }
+    body[data-mode="layout_edit"] #edit-dragbar { display: flex; }
+    body[data-mode="layout_edit"] main { padding-top: 46px; }
     #mode { display: inline-block; margin-top: 14px; padding: 4px 8px; border-radius: 6px; background: #eef2f7; }
   </style>
 </head>
 <body data-mode="interaction">
+  <div id="edit-dragbar">拖动此区域移动看板；四边和四角可缩放</div>
   <main>
     <h1>DeskBoard</h1>
     <p>本地 Dashboard 壳已加载。业务组件将在后续任务中加入。</p>
     <div id="mode">interaction</div><br>
     <button id="settings" type="button">打开设置</button>
-    <div id="edit-toolbar">
-      <button id="move" type="button">移动看板</button>
-      <button id="resize" type="button">调整大小</button>
-    </div>
   </main>
   <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
   <script>
@@ -45,12 +48,6 @@
       bridge.modeChanged.connect(applyMode);
       document.getElementById("settings").addEventListener("click", function () {
         bridge.openSettings();
-      });
-      document.getElementById("move").addEventListener("mousedown", function () {
-        bridge.beginWindowMove();
-      });
-      document.getElementById("resize").addEventListener("mousedown", function () {
-        bridge.beginWindowResize();
       });
       bridge.notifyReady();
     });

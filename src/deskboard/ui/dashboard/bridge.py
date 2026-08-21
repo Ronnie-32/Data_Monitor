@@ -11,8 +11,6 @@ class DashboardBridge(QObject):
     shellReady = Signal()
     modeChanged = Signal(str)
     settingsRequested = Signal()
-    windowMoveRequested = Signal()
-    windowResizeRequested = Signal()
 
     @Slot()
     def notifyReady(self) -> None:  # noqa: N802
@@ -21,14 +19,6 @@ class DashboardBridge(QObject):
     @Slot()
     def openSettings(self) -> None:  # noqa: N802
         self.settingsRequested.emit()
-
-    @Slot()
-    def beginWindowMove(self) -> None:  # noqa: N802
-        self.windowMoveRequested.emit()
-
-    @Slot()
-    def beginWindowResize(self) -> None:  # noqa: N802
-        self.windowResizeRequested.emit()
 
     def publish_mode(self, mode: AppMode) -> None:
         if not isinstance(mode, AppMode):
