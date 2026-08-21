@@ -125,7 +125,8 @@ class TodoPage(QWidget):
 
     def open_editor(self, todo_id: int) -> bool:
         todo = self._service.get(todo_id)
-        dialog = self._editor_factory(todo, self._clock.today(), self)
+        dialog_parent = self if self.isVisible() else None
+        dialog = self._editor_factory(todo, self._clock.today(), dialog_parent)
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.todo_update is None:
             return False
         self._service.update(todo_id, dialog.todo_update)
@@ -175,7 +176,7 @@ class TodoPage(QWidget):
 
     def _show_delete_confirmation(self, _todo_id: int, content: str) -> bool:
         result = QMessageBox.question(
-            self,
+            self if self.isVisible() else None,
             "Delete Todo permanently?",
             f'Delete "{content}" permanently? This cannot be undone.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,

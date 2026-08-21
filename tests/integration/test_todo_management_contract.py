@@ -80,18 +80,43 @@ def test_default_delete_confirmation_is_cancel_safe(monkeypatch):
     migrate(connection)
     service = TodoService(TodoRepository(connection), FakeClock())
     page = TodoPage(service, FakeClock())
-    observed: list[tuple[str, QMessageBox.StandardButton]] = []
+    observed: list[tuple[object, str, QMessageBox.StandardButton]] = []
 
-    def decline(_parent, title, _text, _buttons, default_button):
-        observed.append((title, default_button))
+    def decline(parent, title, _text, _buttons, default_button):
+        observed.append((parent, title, default_button))
         return QMessageBox.StandardButton.Cancel
 
     monkeypatch.setattr(QMessageBox, "question", decline)
 
     assert page._show_delete_confirmation(1, "Keep me") is False
     assert observed == [
-        ("Delete Todo permanently?", QMessageBox.StandardButton.Cancel)
+        (None, "Delete Todo permanently?", QMessageBox.StandardButton.Cancel)
     ]
+    page.close()
+    connection.close()
+    del app
+
+
+def test_hidden_settings_delete_uses_top_level_confirmation_and_deletes(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    migrate(connection)
+    service = TodoService(TodoRepository(connection), FakeClock())
+    todo = service.add_quick("Delete from Dashboard")
+    page = TodoPage(service, FakeClock())
+    observed_parents: list[object] = []
+
+    def accept(parent, _title, _text, _buttons, _default_button):
+        observed_parents.append(parent)
+        return QMessageBox.StandardButton.Yes
+
+    monkeypatch.setattr(QMessageBox, "question", accept)
+
+    assert page.isVisible() is False
+    assert page.delete_todo(todo.id) is True
+    assert observed_parents == [None]
+    assert service.get_incomplete_items() == []
     page.close()
     connection.close()
     del app
