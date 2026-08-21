@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     from deskboard.repositories.todo_repository import TodoRepository
     from deskboard.services.todo_service import TodoService
     from deskboard.ui.dashboard.window import DashboardWindow
+    from deskboard.ui.settings.window import SettingsWindow
 
     qt_application = QApplication.instance() or QApplication(arguments)
     qt_application.setApplicationName("DeskBoard")
@@ -54,12 +55,23 @@ def main(argv: list[str] | None = None) -> int:
     clock = SystemClock()
     todo_service = TodoService(TodoRepository(connection), clock)
     qt_application.aboutToQuit.connect(connection.close)
-    application = DeskBoardApplication(
-        as_qt_application(qt_application),
-        dashboard_factory=lambda: DashboardWindow(
+    dashboard = DashboardWindow(todo_service=todo_service, clock=clock)
+
+    def make_settings(set_mode, show_dashboard, hide_dashboard, exit_application):
+        return SettingsWindow(
+            set_mode,
+            show_dashboard,
+            hide_dashboard,
+            exit_application,
             todo_service=todo_service,
             clock=clock,
-        ),
+            on_todos_changed=dashboard.bridge.publish_todos,
+        )
+
+    application = DeskBoardApplication(
+        as_qt_application(qt_application),
+        dashboard_factory=lambda: dashboard,
+        settings_factory=make_settings,
         instance_guard=instance_guard,
     )
     application_holder.append(application)

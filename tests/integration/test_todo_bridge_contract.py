@@ -100,6 +100,25 @@ def test_todo_commands_are_gated_to_interaction_mode():
     assert service.calls == []
 
 
+def test_editor_and_delete_requests_route_natively_only_in_interaction_mode():
+    service = FakeTodoService()
+    bridge = DashboardBridge(todo_service=service, clock=FakeClock())
+    editor_requests: list[int] = []
+    delete_requests: list[int] = []
+    bridge.todoEditorRequested.connect(editor_requests.append)
+    bridge.todoDeleteRequested.connect(delete_requests.append)
+
+    bridge.openTodoEditor(1)
+    bridge.requestDeleteTodo(2)
+    bridge.publish_mode(AppMode.LOCKED)
+    bridge.openTodoEditor(1)
+    bridge.requestDeleteTodo(2)
+
+    assert editor_requests == [1]
+    assert delete_requests == [2]
+    assert service.calls == []
+
+
 def test_ready_publishes_current_todos_and_bridge_has_no_persistence_logic():
     service = FakeTodoService()
     bridge = DashboardBridge(todo_service=service, clock=FakeClock())
@@ -122,7 +141,13 @@ def test_dashboard_todo_assets_use_bridge_commands_and_mode_gating():
     assert 'type="module"' in html
     assert "./js/widgets/todo.js" in html
     assert "./css/widgets.css" in html
-    for command in ("addQuickTodo", "toggleTodo", "reorderTodos"):
+    for command in (
+        "addQuickTodo",
+        "toggleTodo",
+        "reorderTodos",
+        "openTodoEditor",
+        "requestDeleteTodo",
+    ):
         assert command in javascript
     assert 'dataset.mode === "interaction"' in javascript
     assert "Edit details" in html
@@ -140,3 +165,5 @@ def test_production_window_and_entrypoint_wire_todo_service_into_bridge():
     assert "todo_service=todo_service" in window_source
     assert "TodoService(TodoRepository(connection), clock)" in main_source
     assert "dashboard_factory=" in main_source
+    assert "settings_factory=" in main_source
+    assert "on_todos_changed=dashboard.bridge.publish_todos" in main_source

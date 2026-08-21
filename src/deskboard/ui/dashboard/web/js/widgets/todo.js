@@ -115,10 +115,10 @@ export function createTodoWidget(bridge) {
     if (!interactionEnabled() || !contextTodo || !action) return;
     if (action === "toggle") bridge.toggleTodo(contextTodo.id);
     if (action === "edit") {
-      window.dispatchEvent(new CustomEvent("todo-editor-requested", { detail: contextTodo.id }));
+      bridge.openTodoEditor(contextTodo.id);
     }
     if (action === "delete") {
-      window.dispatchEvent(new CustomEvent("todo-delete-requested", { detail: contextTodo.id }));
+      bridge.requestDeleteTodo(contextTodo.id);
     }
     closeMenu();
   });

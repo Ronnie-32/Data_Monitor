@@ -21,6 +21,9 @@ class TodoService:
             now=self._clock.now(),
         )
 
+    def get(self, todo_id: int) -> Todo:
+        return self._repository.require(todo_id)
+
     def update(self, todo_id: int, update: TodoUpdate) -> Todo:
         current = self._repository.require(todo_id)
         fields: dict[str, object] = {}
@@ -74,6 +77,9 @@ class TodoService:
 
     def get_completed_history(self) -> list[Todo]:
         return self._repository.list_completed()
+
+    def get_incomplete_items(self) -> list[Todo]:
+        return self._repository.list_incomplete()
 
     def get_for_date(self, day: date) -> list[Todo]:
         return self._repository.list_for_date(day)

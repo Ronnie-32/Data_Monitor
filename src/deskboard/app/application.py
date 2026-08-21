@@ -37,6 +37,10 @@ class SettingsLike(Protocol):
 
     def set_mode_state(self, mode: AppMode) -> None: ...
 
+    def open_todo_editor(self, todo_id: int) -> bool: ...
+
+    def request_delete_todo(self, todo_id: int) -> bool: ...
+
 
 SettingsFactory = Callable[
     [Callable[[AppMode], None], Callable[[], None], Callable[[], None], Callable[[], None]],
@@ -101,6 +105,8 @@ class DeskBoardApplication:
         bridge = getattr(self.dashboard, "bridge", None)
         if bridge is not None:
             bridge.settingsRequested.connect(self.show_settings)
+            bridge.todoEditorRequested.connect(self.open_todo_editor)
+            bridge.todoDeleteRequested.connect(self.request_delete_todo)
 
     @staticmethod
     def _default_dashboard_factory() -> DashboardLike:
@@ -203,6 +209,12 @@ class DeskBoardApplication:
     def close_settings(self) -> None:
         if self._settings is not None:
             self._settings.close()
+
+    def open_todo_editor(self, todo_id: int) -> bool:
+        return self.settings.open_todo_editor(todo_id)
+
+    def request_delete_todo(self, todo_id: int) -> bool:
+        return self.settings.request_delete_todo(todo_id)
 
     def exit(self) -> None:
         if self._exiting:

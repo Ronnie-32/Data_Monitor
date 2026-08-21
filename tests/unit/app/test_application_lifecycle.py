@@ -2,6 +2,25 @@ from deskboard.app.application import DeskBoardApplication
 from deskboard.app.modes import AppMode
 
 
+class FakeSignal:
+    def __init__(self) -> None:
+        self.callbacks = []
+
+    def connect(self, callback) -> None:
+        self.callbacks.append(callback)
+
+    def emit(self, value=None) -> None:
+        for callback in self.callbacks:
+            callback() if value is None else callback(value)
+
+
+class FakeBridge:
+    def __init__(self) -> None:
+        self.settingsRequested = FakeSignal()
+        self.todoEditorRequested = FakeSignal()
+        self.todoDeleteRequested = FakeSignal()
+
+
 class FakeQtApplication:
     def __init__(self) -> None:
         self.quit_on_last_window_closed = True
@@ -23,6 +42,7 @@ class FakeDashboard:
     def __init__(self) -> None:
         self.visible = False
         self.modes: list[AppMode] = []
+        self.bridge = FakeBridge()
 
     def show(self) -> None:
         self.visible = True
@@ -48,6 +68,7 @@ class FakeSettings:
         self.raise_calls = 0
         self.activate_calls = 0
         self.modes: list[AppMode] = []
+        self.todo_actions: list[tuple[str, int]] = []
 
     def show(self) -> None:
         self.visible = True
@@ -64,6 +85,14 @@ class FakeSettings:
 
     def set_mode_state(self, mode: AppMode) -> None:
         self.modes.append(mode)
+
+    def open_todo_editor(self, todo_id: int) -> bool:
+        self.todo_actions.append(("edit", todo_id))
+        return True
+
+    def request_delete_todo(self, todo_id: int) -> bool:
+        self.todo_actions.append(("delete", todo_id))
+        return True
 
 
 class FakeTray:
@@ -218,6 +247,16 @@ def test_tray_exit_quits_the_owned_application_shell():
     assert qt_app.quit_calls == 1
     assert dashboard.visible is False
     assert tray_instances[0].hide_calls == 1
+
+
+def test_dashboard_todo_management_requests_route_to_native_settings_surface():
+    application, _, dashboard, settings_instances, _ = make_application()
+
+    dashboard.bridge.todoEditorRequested.emit(7)
+    dashboard.bridge.todoDeleteRequested.emit(8)
+
+    assert len(settings_instances) == 1
+    assert settings_instances[0].todo_actions == [("edit", 7), ("delete", 8)]
 
 
 def test_exit_closes_guard_then_owned_windows_and_quits_exactly_once():

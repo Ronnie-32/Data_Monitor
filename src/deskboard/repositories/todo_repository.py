@@ -122,6 +122,9 @@ class TodoRepository:
     def list_completed(self) -> list[Todo]:
         return self._list("completed_at IS NOT NULL", ())
 
+    def list_incomplete(self) -> list[Todo]:
+        return self._list("completed_at IS NULL", ())
+
     def list_for_date(self, day: date) -> list[Todo]:
         return self._list("planned_date = ?", (day.isoformat(),))
 

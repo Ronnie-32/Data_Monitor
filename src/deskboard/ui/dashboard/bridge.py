@@ -27,6 +27,8 @@ class DashboardBridge(QObject):
     modeChanged = Signal(str)
     settingsRequested = Signal()
     todosChanged = Signal(list)
+    todoEditorRequested = Signal(int)
+    todoDeleteRequested = Signal(int)
 
     def __init__(
         self,
@@ -85,6 +87,18 @@ class DashboardBridge(QObject):
         assert self._todo_service is not None
         self._todo_service.reorder(ids)
         self.publish_todos()
+
+    @Slot(int)
+    def openTodoEditor(self, todo_id: int) -> None:  # noqa: N802
+        if not self._todo_commands_enabled():
+            return
+        self.todoEditorRequested.emit(_todo_id(todo_id))
+
+    @Slot(int)
+    def requestDeleteTodo(self, todo_id: int) -> None:  # noqa: N802
+        if not self._todo_commands_enabled():
+            return
+        self.todoDeleteRequested.emit(_todo_id(todo_id))
 
     def publish_todos(self) -> None:
         if self._todo_service is None:
