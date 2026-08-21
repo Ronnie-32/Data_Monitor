@@ -685,14 +685,14 @@ todosChanged(payload)
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1: Write presenter contract tests**
-- [ ] **Step 2: Write bridge/service integration tests where Qt-independent**
-- [ ] **Step 3: Implement Todo presenter**
-- [ ] **Step 4: Implement quick-add, checkbox, drag-order, and Todo content scrolling**
-- [ ] **Step 5: Implement completed-today and overdue visual states from Python-provided ViewModel fields**
-- [ ] **Step 6: Run focused automated verification**
-- [ ] **Step 7: Perform bounded Interaction/Locked acceptance for add/check/reorder/scroll**
-- [ ] **Step 8: Stop**
+- [x] **Step 1: Write presenter contract tests**
+- [x] **Step 2: Write bridge/service integration tests where Qt-independent**
+- [x] **Step 3: Implement Todo presenter**
+- [x] **Step 4: Implement quick-add, checkbox, drag-order, and Todo content scrolling**
+- [x] **Step 5: Implement completed-today and overdue visual states from Python-provided ViewModel fields**
+- [x] **Step 6: Run focused automated verification**
+- [x] **Step 7: Perform bounded Interaction/Locked acceptance for add/check/reorder/scroll**
+- [x] **Step 8: Stop**
 
 Acceptance:
 
