@@ -32,6 +32,17 @@ def test_daily_modes_never_offer_native_move_or_resize(mode):
     assert native_hit_test(mode, 50, 20, (0, 0, 100, 80)) is None
 
 
+@pytest.mark.parametrize("mode", [AppMode.LOCKED, AppMode.INTERACTION])
+def test_daily_modes_block_windows_minimize_commands(mode):
+    assert window_module.should_block_daily_minimize(mode, window_module.WM_SYSCOMMAND, 0xF020)
+    assert not window_module.should_block_daily_minimize(
+        mode, window_module.WM_SYSCOMMAND, 0xF030
+    )
+    assert not window_module.should_block_daily_minimize(
+        AppMode.LAYOUT_EDIT, window_module.WM_SYSCOMMAND, 0xF020
+    )
+
+
 def test_windows_pointer_style_and_shell_owner_are_separate_operations():
     source = open("src/deskboard/ui/dashboard/window.py", encoding="utf-8").read()
 
@@ -49,7 +60,8 @@ def test_windows_pointer_style_and_shell_owner_are_separate_operations():
     assert "get_long.restype = ctypes.c_ssize_t" in source
     assert "GetWindowRect" in source
     assert "GetLastError" in source
-    assert "GetShellWindow returned a null HWND; owner unchanged" in source
+    assert "GetShellWindow and GetDesktopWindow returned null; owner unchanged" in source
+    assert "GetDesktopWindow" in source
     assert "SetParent" not in source
     assert "WorkerW" not in source
 
@@ -85,6 +97,7 @@ def test_null_shell_hwnd_is_logged_and_owner_is_left_unchanged(monkeypatch):
         "_windows_user32",
         lambda: (lambda: 0, unexpected_call, unexpected_call, unexpected_call, None),
     )
+    monkeypatch.setattr(window_module, "_windows_desktop_window", lambda: 0)
     monkeypatch.setattr(
         window_module.LOGGER,
         "error",
@@ -98,7 +111,40 @@ def test_null_shell_hwnd_is_logged_and_owner_is_left_unchanged(monkeypatch):
 
     DashboardWindow._apply_windows_shell_owner(fake_window)
 
-    assert errors == ["GetShellWindow returned a null HWND; owner unchanged"]
+    assert errors == [
+        "GetShellWindow and GetDesktopWindow returned null; owner unchanged"
+    ]
+
+
+def test_null_shell_hwnd_falls_back_to_desktop_window(monkeypatch):
+    set_window_pos_calls = []
+
+    def set_window_pos(*args):
+        set_window_pos_calls.append(args)
+        return True
+
+    monkeypatch.setattr(window_module.os, "name", "nt")
+    monkeypatch.setattr(
+        window_module,
+        "_windows_user32",
+        lambda: (
+            lambda: 0,
+            lambda *_args: 0,
+            lambda *_args: 789,
+            set_window_pos,
+            None,
+        ),
+    )
+    monkeypatch.setattr(window_module, "_windows_desktop_window", lambda: 456)
+    fake_window = type(
+        "FakeWindow",
+        (),
+        {"_mode": AppMode.INTERACTION, "winId": lambda self: 123},
+    )()
+
+    assert DashboardWindow._apply_windows_shell_owner(fake_window) is True
+    assert set_window_pos_calls[0][0:2] == (123, 0)
+    assert set_window_pos_calls[0][-1] & 0x0004  # SWP_NOZORDER
 
 
 def test_owner_api_failure_logs_windows_error_and_skips_refresh(monkeypatch):

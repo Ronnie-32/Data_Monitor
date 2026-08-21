@@ -10,6 +10,7 @@ from deskboard.infrastructure.clock import Clock
 from deskboard.repositories.todo_repository import TodoRepository
 from deskboard.services.todo_service import TodoService
 from deskboard.ui.settings.todo_page import TodoPage
+from deskboard.ui.settings.window import SettingsWindow
 
 
 class FakeClock(Clock):
@@ -118,5 +119,35 @@ def test_hidden_settings_delete_uses_top_level_confirmation_and_deletes(monkeypa
     assert observed_parents == [None]
     assert service.get_incomplete_items() == []
     page.close()
+    connection.close()
+    del app
+
+
+def test_settings_window_delete_route_uses_shared_service_when_window_is_hidden(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    migrate(connection)
+    service = TodoService(TodoRepository(connection), FakeClock())
+    todo = service.add_quick("Settings route")
+
+    monkeypatch.setattr(
+        QMessageBox,
+        "question",
+        lambda *_args: QMessageBox.StandardButton.Yes,
+    )
+    window = SettingsWindow(
+        lambda _mode: None,
+        lambda: None,
+        lambda: None,
+        lambda: None,
+        todo_service=service,
+        clock=FakeClock(),
+    )
+
+    assert window.isVisible() is False
+    assert window.request_delete_todo(todo.id) is True
+    assert service.get_incomplete_items() == []
+    window.close()
     connection.close()
     del app

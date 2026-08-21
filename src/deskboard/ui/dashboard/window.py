@@ -17,6 +17,7 @@ from deskboard.infrastructure.clock import Clock
 from deskboard.ui.dashboard.bridge import DashboardBridge, TodoServiceLike
 
 WM_NCHITTEST = 0x0084
+WM_SYSCOMMAND = 0x0112
 HTCAPTION = 2
 HTLEFT = 10
 HTRIGHT = 11
@@ -28,7 +29,17 @@ HTBOTTOMLEFT = 16
 HTBOTTOMRIGHT = 17
 RESIZE_BORDER = 8
 DRAG_REGION_HEIGHT = 44
+SC_MINIMIZE = 0xF020
 LOGGER = logging.getLogger(__name__)
+
+
+def should_block_daily_minimize(mode: AppMode, message: int, w_param: int) -> bool:
+    """Keep Windows Show Desktop from minimizing the daily Dashboard."""
+    return (
+        mode is not AppMode.LAYOUT_EDIT
+        and message == WM_SYSCOMMAND
+        and (w_param & 0xFFF0) == SC_MINIMIZE
+    )
 
 
 def _windows_user32() -> tuple[Any, ...]:
@@ -67,6 +78,17 @@ def _windows_user32() -> tuple[Any, ...]:
         set_window_pos,
         get_window_rect,
     )
+
+
+def _windows_desktop_window() -> int:
+    """Return the always-present desktop HWND for shell-owner fallback."""
+    import ctypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    get_desktop = user32.GetDesktopWindow
+    get_desktop.argtypes = []
+    get_desktop.restype = ctypes.c_void_p
+    return int(get_desktop() or 0)
 
 
 def _log_last_error(operation: str) -> None:
@@ -126,6 +148,10 @@ class DashboardWindow(QMainWindow):
         super().__init__()
         self._mode = AppMode.INTERACTION
         self._layout_window_state: bool | None = None
+        self._shell_owner_retry_count = 0
+        self._daily_visibility_guard = QTimer(self)
+        self._daily_visibility_guard.setInterval(500)
+        self._daily_visibility_guard.timeout.connect(self._guard_daily_visibility)
         self.setWindowTitle("DeskBoard")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.resize(760, 460)
@@ -166,6 +192,8 @@ class DashboardWindow(QMainWindow):
                 flags |= Qt.WindowType.WindowStaysOnTopHint
             self.setWindowFlags(flags)
             self._layout_window_state = layout_edit
+        if layout_edit:
+            self._daily_visibility_guard.stop()
         passthrough = self._mode is AppMode.LOCKED
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, passthrough)
         has_input_passthrough = bool(
@@ -208,26 +236,35 @@ class DashboardWindow(QMainWindow):
         if not set_window_pos(hwnd, 0, 0, 0, 0, 0, flags):
             _log_last_error("SetWindowPos")
 
-    def _apply_windows_shell_owner(self) -> None:
+    def _apply_windows_shell_owner(self) -> bool:
         """Keep daily modes above the shell without raising above normal apps."""
         if os.name != "nt" or not self.winId():
-            return
+            return True
+        if hasattr(self, "isVisible") and not self.isVisible():
+            return True
         import ctypes
 
         hwnd = int(self.winId())
         GWLP_HWNDPARENT = -8
         get_shell, get_long, set_long, set_window_pos, _ = _windows_user32()
         owner = 0
+        can_reinsert_after_owner = False
         if self._mode is not AppMode.LAYOUT_EDIT:
             owner = int(get_shell() or 0)
             if not owner:
-                LOGGER.error("GetShellWindow returned a null HWND; owner unchanged")
-                return
+                owner = _windows_desktop_window()
+                if not owner:
+                    LOGGER.error(
+                        "GetShellWindow and GetDesktopWindow returned null; owner unchanged"
+                    )
+                    return False
+            else:
+                can_reinsert_after_owner = True
         ctypes.set_last_error(0)
         current_owner = int(get_long(hwnd, GWLP_HWNDPARENT))
         if current_owner == 0 and ctypes.get_last_error():
             _log_last_error("GetWindowLongPtrW(GWLP_HWNDPARENT)")
-            return
+            return False
         if current_owner != owner:
             ctypes.set_last_error(0)
             previous = int(set_long(hwnd, GWLP_HWNDPARENT, owner))
@@ -245,15 +282,16 @@ class DashboardWindow(QMainWindow):
                         "SetWindowLongPtrW(GWLP_HWNDPARENT) failed; GetLastError=%d",
                         setter_error,
                     )
-                    return
+                    return False
         SWP_NOZORDER = 0x0004
         flags = 0x0001 | 0x0002 | 0x0010 | 0x0020
-        insert_after = owner
-        if not owner:
+        insert_after = owner if can_reinsert_after_owner else 0
+        if not can_reinsert_after_owner:
             flags |= SWP_NOZORDER
-            insert_after = 0
         if not set_window_pos(hwnd, insert_after, 0, 0, 0, 0, flags):
             _log_last_error("SetWindowPos")
+            return False
+        return True
 
     def event(self, event: QEvent) -> bool:
         handled = super().event(event)
@@ -262,14 +300,35 @@ class DashboardWindow(QMainWindow):
             and self._mode is not AppMode.LAYOUT_EDIT
         ):
             QTimer.singleShot(0, self._apply_windows_shell_owner)
+        elif (
+            event.type() is QEvent.Type.WindowDeactivate
+            and self._mode is not AppMode.LAYOUT_EDIT
+        ):
+            QTimer.singleShot(0, self._restore_daily_visibility)
         return handled
 
+    def changeEvent(self, event: QEvent) -> None:  # noqa: N802
+        super().changeEvent(event)
+        if (
+            event.type() is QEvent.Type.WindowStateChange
+            and self._mode is not AppMode.LAYOUT_EDIT
+            and self.isMinimized()
+        ):
+            QTimer.singleShot(0, self._restore_daily_visibility)
+
     def nativeEvent(self, event_type: Any, message: Any) -> tuple[bool, int]:  # noqa: N802
-        if os.name == "nt" and self._mode is AppMode.LAYOUT_EDIT:
+        if os.name == "nt":
             import ctypes
             from ctypes import wintypes
 
             msg = wintypes.MSG.from_address(int(message))
+            if should_block_daily_minimize(self._mode, msg.message, int(msg.wParam)):
+                return True, 0
+            if self._mode is not AppMode.LAYOUT_EDIT and msg.message == 0x0005:
+                if int(msg.wParam) == 1:  # SIZE_MINIMIZED
+                    QTimer.singleShot(0, self._restore_daily_visibility)
+            if self._mode is not AppMode.LAYOUT_EDIT:
+                return super().nativeEvent(event_type, message)
             if msg.message == WM_NCHITTEST:
                 _, _, _, _, get_window_rect = _windows_user32()
                 rect = wintypes.RECT()
@@ -289,7 +348,60 @@ class DashboardWindow(QMainWindow):
                     return True, hit
         return super().nativeEvent(event_type, message)
 
+    def _restore_daily_visibility(self) -> None:
+        if self._mode is AppMode.LAYOUT_EDIT:
+            return
+        native_iconic = self._is_windows_iconic()
+        if native_iconic:
+            import ctypes
+            from ctypes import wintypes
+
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            show_window = user32.ShowWindow
+            show_window.argtypes = [ctypes.c_void_p, ctypes.c_int]
+            show_window.restype = wintypes.BOOL
+            show_window(int(self.winId()), 9)  # SW_RESTORE
+        if self.isMinimized() or native_iconic:
+            self.showNormal()
+        if not self.isVisible():
+            self.show()
+        self._apply_windows_shell_owner()
+
+    def _guard_daily_visibility(self) -> None:
+        if self._mode is AppMode.LAYOUT_EDIT:
+            self._daily_visibility_guard.stop()
+            return
+        if self._is_windows_iconic():
+            self._restore_daily_visibility()
+        elif not self.isVisible():
+            self._daily_visibility_guard.stop()
+
+    def _is_windows_iconic(self) -> bool:
+        if os.name != "nt" or not self.winId():
+            return False
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        is_iconic = user32.IsIconic
+        is_iconic.argtypes = [ctypes.c_void_p]
+        is_iconic.restype = wintypes.BOOL
+        return bool(is_iconic(int(self.winId())))
+
     def showEvent(self, event: Any) -> None:  # noqa: N802
         super().showEvent(event)
         self._set_windows_pointer_passthrough(self._mode is AppMode.LOCKED)
-        QTimer.singleShot(0, self._apply_windows_shell_owner)
+        if self._mode is not AppMode.LAYOUT_EDIT:
+            self._daily_visibility_guard.start()
+        self._shell_owner_retry_count = 0
+        QTimer.singleShot(0, self._apply_shell_owner_with_retry)
+
+    def _apply_shell_owner_with_retry(self) -> None:
+        if not self.isVisible():
+            return
+        if self._apply_windows_shell_owner():
+            return
+        if self._shell_owner_retry_count >= 10:
+            return
+        self._shell_owner_retry_count += 1
+        QTimer.singleShot(100, self._apply_shell_owner_with_retry)

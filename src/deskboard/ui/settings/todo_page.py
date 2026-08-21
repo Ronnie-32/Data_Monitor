@@ -7,6 +7,7 @@ from typing import Protocol
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -175,8 +176,11 @@ class TodoPage(QWidget):
             self._after_change()
 
     def _show_delete_confirmation(self, _todo_id: int, content: str) -> bool:
+        parent = self if self.isVisible() else QApplication.activeWindow()
+        if parent is not None and not parent.isVisible():
+            parent = None
         result = QMessageBox.question(
-            self if self.isVisible() else None,
+            parent,
             "Delete Todo permanently?",
             f'Delete "{content}" permanently? This cannot be undone.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
