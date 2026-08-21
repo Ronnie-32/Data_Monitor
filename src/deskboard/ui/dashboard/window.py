@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer, QUrl, Slot
+from PySide6.QtCore import QEvent, Qt, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
@@ -228,29 +228,41 @@ class DashboardWindow(QMainWindow):
         if current_owner == 0 and ctypes.get_last_error():
             _log_last_error("GetWindowLongPtrW(GWLP_HWNDPARENT)")
             return
-        if current_owner == owner:
-            return
-        ctypes.set_last_error(0)
-        previous = int(set_long(hwnd, GWLP_HWNDPARENT, owner))
-        setter_error = ctypes.get_last_error()
-        if previous == 0 and setter_error:
+        if current_owner != owner:
             ctypes.set_last_error(0)
-            confirmed_owner = int(get_long(hwnd, GWLP_HWNDPARENT))
-            confirmation_error = ctypes.get_last_error()
-            if (
-                confirmed_owner == 0
-                and confirmation_error
-                or confirmed_owner != owner
-            ):
-                LOGGER.error(
-                    "SetWindowLongPtrW(GWLP_HWNDPARENT) failed; GetLastError=%d",
-                    setter_error,
-                )
-                return
+            previous = int(set_long(hwnd, GWLP_HWNDPARENT, owner))
+            setter_error = ctypes.get_last_error()
+            if previous == 0 and setter_error:
+                ctypes.set_last_error(0)
+                confirmed_owner = int(get_long(hwnd, GWLP_HWNDPARENT))
+                confirmation_error = ctypes.get_last_error()
+                if (
+                    confirmed_owner == 0
+                    and confirmation_error
+                    or confirmed_owner != owner
+                ):
+                    LOGGER.error(
+                        "SetWindowLongPtrW(GWLP_HWNDPARENT) failed; GetLastError=%d",
+                        setter_error,
+                    )
+                    return
         SWP_NOZORDER = 0x0004
-        flags = 0x0001 | 0x0002 | SWP_NOZORDER | 0x0010 | 0x0020
-        if not set_window_pos(hwnd, 0, 0, 0, 0, 0, flags):
+        flags = 0x0001 | 0x0002 | 0x0010 | 0x0020
+        insert_after = owner
+        if not owner:
+            flags |= SWP_NOZORDER
+            insert_after = 0
+        if not set_window_pos(hwnd, insert_after, 0, 0, 0, 0, flags):
             _log_last_error("SetWindowPos")
+
+    def event(self, event: QEvent) -> bool:
+        handled = super().event(event)
+        if (
+            event.type() is QEvent.Type.WindowActivate
+            and self._mode is not AppMode.LAYOUT_EDIT
+        ):
+            QTimer.singleShot(0, self._apply_windows_shell_owner)
+        return handled
 
     def nativeEvent(self, event_type: Any, message: Any) -> tuple[bool, int]:  # noqa: N802
         if os.name == "nt" and self._mode is AppMode.LAYOUT_EDIT:

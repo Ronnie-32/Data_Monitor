@@ -135,6 +135,38 @@ def test_owner_api_failure_logs_windows_error_and_skips_refresh(monkeypatch):
     ]
 
 
+def test_daily_owner_is_reinserted_above_shell_below_normal_windows(monkeypatch):
+    set_window_pos_calls = []
+
+    def set_window_pos(*args):
+        set_window_pos_calls.append(args)
+        return True
+
+    monkeypatch.setattr(window_module.os, "name", "nt")
+    monkeypatch.setattr(
+        window_module,
+        "_windows_user32",
+        lambda: (
+            lambda: 456,
+            lambda *_args: 456,
+            lambda *_args: 456,
+            set_window_pos,
+            None,
+        ),
+    )
+    fake_window = type(
+        "FakeWindow",
+        (),
+        {"_mode": AppMode.INTERACTION, "winId": lambda self: 123},
+    )()
+
+    DashboardWindow._apply_windows_shell_owner(fake_window)
+
+    assert len(set_window_pos_calls) == 1
+    assert set_window_pos_calls[0][0:2] == (123, 456)
+    assert not (set_window_pos_calls[0][-1] & 0x0004)  # SWP_NOZORDER
+
+
 def test_layout_owner_zero_does_not_mask_setter_and_confirmation_failures(
     monkeypatch,
 ):
