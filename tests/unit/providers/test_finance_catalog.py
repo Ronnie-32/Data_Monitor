@@ -35,7 +35,8 @@ def test_catalog_entries_expose_metadata_and_share_source_groups():
     assert usd.provider_internal_key == "USD"
     assert usd.source_name == "中国外汇交易中心"
     assert usd.source_homepage == "https://www.chinamoney.com.cn/"
-    assert sse.provider_group == sp500.provider_group == "indices"
+    assert sse.provider_group == "indices"
+    assert sp500.provider_group == "us_indices"
     assert sse.provider_internal_key == "s_sh000001"
     assert sp500.provider_internal_key == "us.INX"
     assert all(item.value_format and item.change_format for item in FINANCE_CATALOG)
