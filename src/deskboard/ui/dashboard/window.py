@@ -4,17 +4,32 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QEvent, Qt, QTimer, QUrl, Slot
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QInputDialog, QMainWindow
 
 from deskboard.app.modes import AppMode
 from deskboard.infrastructure.clock import Clock
-from deskboard.ui.dashboard.bridge import DashboardBridge, TodoServiceLike
+from deskboard.models.profile import ProfileState
+from deskboard.presentation.layout_state import (
+    LayoutStateError,
+    default_layout_state,
+    layout_with_window_geometry,
+    profile_state_from_layout,
+    serialize_layout,
+)
+from deskboard.ui.dashboard.bridge import (
+    AgendaServiceLike,
+    DashboardBridge,
+    ProfileServiceLike,
+    TimetableServiceLike,
+    TodoServiceLike,
+)
 
 WM_NCHITTEST = 0x0084
 WM_SYSCOMMAND = 0x0112
@@ -31,6 +46,13 @@ RESIZE_BORDER = 8
 DRAG_REGION_HEIGHT = 44
 SC_MINIMIZE = 0xF020
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class LayoutEditSnapshot:
+    state: ProfileState
+    geometry: tuple[int, int, int, int]
+    previous_mode: AppMode
 
 
 def should_block_daily_minimize(mode: AppMode, message: int, w_param: int) -> bool:
@@ -137,17 +159,23 @@ def native_hit_test(
 
 
 class DashboardWindow(QMainWindow):
-    """Small desktop panel; widget rendering remains intentionally empty."""
+    """Small desktop panel with one Python-owned web render surface."""
 
     def __init__(
         self,
         *,
         todo_service: TodoServiceLike | None = None,
+        agenda_service: AgendaServiceLike | None = None,
+        timetable_service: TimetableServiceLike | None = None,
+        profile_service: ProfileServiceLike | None = None,
         clock: Clock | None = None,
     ) -> None:
         super().__init__()
         self._mode = AppMode.INTERACTION
         self._layout_window_state: bool | None = None
+        self._profile_service = profile_service
+        self._active_profile_state = self._load_profile_state()
+        self._layout_snapshot: LayoutEditSnapshot | None = None
         self._shell_owner_retry_count = 0
         self._daily_visibility_guard = QTimer(self)
         self._daily_visibility_guard.setInterval(500)
@@ -155,11 +183,23 @@ class DashboardWindow(QMainWindow):
         self.setWindowTitle("DeskBoard")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.resize(760, 460)
+        self._apply_profile_window_geometry()
 
         self.view = QWebEngineView(self)
         self.view.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
         self.setCentralWidget(self.view)
-        self.bridge = DashboardBridge(self, todo_service=todo_service, clock=clock)
+        self.bridge = DashboardBridge(
+            self,
+            todo_service=todo_service,
+            agenda_service=agenda_service,
+            timetable_service=timetable_service,
+            profile_service=profile_service,
+            clock=clock,
+        )
+        self.bridge.layoutEditRequested.connect(self.enter_layout_edit)
+        self.bridge.layoutSaveRequested.connect(self._save_layout_from_web)
+        self.bridge.layoutCancelRequested.connect(self.cancel_layout_edit)
+        self.bridge.set_profile_state(self._active_profile_state)
         self.channel = QWebChannel(self.view.page())
         self.channel.registerObject("bridge", self.bridge)
         self.view.page().setWebChannel(self.channel)
@@ -175,14 +215,137 @@ class DashboardWindow(QMainWindow):
     def mode(self) -> AppMode:
         return self._mode
 
+    @property
+    def profile_state(self) -> ProfileState:
+        return self._active_profile_state
+
     @Slot(object)
     def set_mode(self, mode: AppMode) -> None:
         if not isinstance(mode, AppMode):
             raise TypeError("mode must be an AppMode")
+        if self._mode is AppMode.LAYOUT_EDIT and mode is not AppMode.LAYOUT_EDIT:
+            self.cancel_layout_edit()
+            if self._mode is mode:
+                return
+        if mode is AppMode.LAYOUT_EDIT and self._mode is not AppMode.LAYOUT_EDIT:
+            self._begin_layout_edit()
         was_visible = self.isVisible()
         self._mode = mode
         self._apply_mode_window_state(was_visible=was_visible)
         self.bridge.publish_mode(mode)
+
+    def enter_layout_edit(self) -> None:
+        """Enter Layout Edit through the same guarded transition as Settings."""
+
+        if self._mode is not AppMode.LAYOUT_EDIT:
+            self.set_mode(AppMode.LAYOUT_EDIT)
+
+    def cancel_layout_edit(self) -> None:
+        """Restore the pre-edit in-memory snapshot without writing SQLite."""
+
+        snapshot = self._layout_snapshot
+        if snapshot is None:
+            return
+        self._active_profile_state = snapshot.state
+        self._apply_window_geometry(snapshot.geometry)
+        self.bridge.set_profile_state(snapshot.state)
+        self.bridge.publish_profile_state(snapshot.state)
+        self._finish_layout_edit(snapshot.previous_mode)
+
+    def apply_profile_state(self, state: ProfileState) -> None:
+        """Apply a switched/reloaded Profile to the Dashboard render surface."""
+
+        if not isinstance(state, ProfileState):
+            raise TypeError("state must be a ProfileState")
+        if self._mode is AppMode.LAYOUT_EDIT:
+            self.cancel_layout_edit()
+        self._active_profile_state = default_layout_state(state)
+        self._apply_profile_window_geometry()
+        self.bridge.set_profile_state(self._active_profile_state)
+        self.bridge.publish_profile_state(self._active_profile_state)
+
+    def _begin_layout_edit(self) -> None:
+        if self._layout_snapshot is not None:
+            return
+        previous_mode = self._mode
+        if previous_mode not in (AppMode.LOCKED, AppMode.INTERACTION):
+            previous_mode = AppMode.INTERACTION
+        geometry = self._window_geometry()
+        snapshot_layout = layout_with_window_geometry(
+            serialize_layout(self._active_profile_state), geometry
+        )
+        snapshot_state = profile_state_from_layout(self._active_profile_state, snapshot_layout)
+        self._layout_snapshot = LayoutEditSnapshot(snapshot_state, geometry, previous_mode)
+
+    def _save_layout_from_web(self, layout_state: dict[str, object]) -> None:
+        if self._mode is not AppMode.LAYOUT_EDIT or self._layout_snapshot is None:
+            return
+        try:
+            saved_layout = layout_with_window_geometry(layout_state, self._window_geometry())
+            state = profile_state_from_layout(self._active_profile_state, saved_layout)
+        except (LayoutStateError, TypeError, ValueError) as error:
+            LOGGER.warning("Ignoring invalid Dashboard layout payload: %s", error)
+            return
+
+        if self._profile_service is not None:
+            current = self._profile_service.current_profile
+            if current.is_builtin:
+                name, accepted = QInputDialog.getText(
+                    self,
+                    "Save As Profile",
+                    "Profile name:",
+                )
+                if not accepted or not name.strip():
+                    return
+                try:
+                    profile = self._profile_service.save_as(name, state)
+                except (TypeError, ValueError) as error:
+                    LOGGER.warning("Could not save Dashboard Profile: %s", error)
+                    return
+                state = profile.state
+            else:
+                try:
+                    self._profile_service.save_current(state)
+                except (TypeError, ValueError) as error:
+                    LOGGER.warning("Could not save Dashboard Profile: %s", error)
+                    return
+
+        self._active_profile_state = state
+        self.bridge.set_profile_state(state)
+        self.bridge.publish_profile_state(state)
+        previous_mode = self._layout_snapshot.previous_mode
+        self._finish_layout_edit(previous_mode)
+
+    def _finish_layout_edit(self, mode: AppMode) -> None:
+        self._layout_snapshot = None
+        was_visible = self.isVisible()
+        self._mode = mode
+        self._apply_mode_window_state(was_visible=was_visible)
+        self.bridge.publish_mode(mode)
+
+    def _load_profile_state(self) -> ProfileState:
+        if self._profile_service is None:
+            return default_layout_state()
+        return default_layout_state(self._profile_service.current_profile.state)
+
+    def _window_geometry(self) -> tuple[int, int, int, int]:
+        rect = self.geometry()
+        return rect.x(), rect.y(), rect.width(), rect.height()
+
+    def _apply_profile_window_geometry(self) -> None:
+        state = self._active_profile_state
+        if None not in (state.window_x, state.window_y, state.window_width, state.window_height):
+            self._apply_window_geometry(
+                (
+                    state.window_x,
+                    state.window_y,
+                    state.window_width,
+                    state.window_height,
+                )
+            )
+
+    def _apply_window_geometry(self, geometry: tuple[int, int, int, int]) -> None:
+        self.setGeometry(*geometry)
 
     def _apply_mode_window_state(self, *, was_visible: bool) -> None:
         layout_edit = self._mode is AppMode.LAYOUT_EDIT
@@ -194,6 +357,10 @@ class DashboardWindow(QMainWindow):
             self._layout_window_state = layout_edit
         if layout_edit:
             self._daily_visibility_guard.stop()
+            self.showNormal()
+            self.show()
+            self.raise_()
+            self.activateWindow()
         passthrough = self._mode is AppMode.LOCKED
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, passthrough)
         has_input_passthrough = bool(

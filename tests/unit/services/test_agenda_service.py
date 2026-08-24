@@ -73,7 +73,7 @@ def test_today_agenda_merges_and_sorts_courses_and_timed_todos(services):
     assert agenda.timed_items[2].time_kind == "range"
 
 
-def test_today_agenda_filters_by_date_and_excludes_deadline_or_unplanned_todos(services):
+def test_today_agenda_filters_by_date_and_includes_today_deadlines(services):
     todo_service, course_service, _ = services
     deadline = todo_service.add_quick("仅截止日期")
     todo_service.update(deadline.id, TodoUpdate(deadline_date=date(2026, 8, 21)))
@@ -85,10 +85,30 @@ def test_today_agenda_filters_by_date_and_excludes_deadline_or_unplanned_todos(s
 
     agenda = AgendaService(todo_service, course_service).get_today(date(2026, 8, 21))
 
-    assert [item.title for item in agenda.date_only_items] == ["今天"]
-    assert deadline.id not in {item.id for item in agenda.items}
+    assert [item.title for item in agenda.date_only_items] == ["今天", "仅截止日期"]
+    assert deadline.id in {item.id for item in agenda.items}
     assert unplanned.id not in {item.id for item in agenda.items}
     assert tomorrow.id not in {item.id for item in agenda.items}
+
+
+def test_today_deadline_is_shown_even_when_planned_date_is_another_day(services):
+    todo_service, course_service, _ = services
+    deadline = todo_service.add_quick("今天到期但计划在明天")
+    todo_service.update(
+        deadline.id,
+        TodoUpdate(
+            deadline_date=date(2026, 8, 21),
+            planned_date=date(2026, 8, 22),
+            planned_start_time=time(10),
+        ),
+    )
+
+    agenda = AgendaService(todo_service, course_service).get_today(date(2026, 8, 21))
+
+    item = next(item for item in agenda.items if item.id == deadline.id)
+    assert item.time_kind == "date_only"
+    assert item.start is None
+    assert item.end is None
 
 
 def test_date_only_todos_follow_manual_order_after_all_timed_items(services):

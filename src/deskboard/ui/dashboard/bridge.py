@@ -1,4 +1,4 @@
-"""QWebChannel bridge for shell state and Dashboard Todo commands."""
+"""QWebChannel bridge for Dashboard state and semantic commands."""
 
 from __future__ import annotations
 
@@ -8,7 +8,12 @@ from PySide6.QtCore import QObject, Signal, Slot
 
 from deskboard.app.modes import AppMode
 from deskboard.infrastructure.clock import Clock, SystemClock
+from deskboard.models.profile import Profile, ProfileState
 from deskboard.models.todo import Todo
+from deskboard.presentation.agenda_presenter import present_today_agenda
+from deskboard.presentation.dashboard_state import present_dashboard_state
+from deskboard.presentation.layout_state import present_profile_state
+from deskboard.presentation.timetable_presenter import present_timetable
 from deskboard.presentation.todo_presenter import present_todos
 
 
@@ -22,11 +27,38 @@ class TodoServiceLike(Protocol):
     def get_dashboard_items(self) -> list[Todo]: ...
 
 
+class AgendaServiceLike(Protocol):
+    def get_today(self, day):
+        ...
+
+
+class TimetableServiceLike(Protocol):
+    def get_current_week(self, day, *, header_mode: str = "weekday_date"):
+        ...
+
+
+class ProfileServiceLike(Protocol):
+    @property
+    def current_profile(self) -> Profile: ...
+
+    def save_current(self, state: ProfileState) -> None: ...
+
+    def save_as(self, name: str, state: ProfileState) -> Profile: ...
+
+
 class DashboardBridge(QObject):
     shellReady = Signal()
+    stateChanged = Signal(dict)
+    profileChanged = Signal(dict)
     modeChanged = Signal(str)
     settingsRequested = Signal()
     todosChanged = Signal(list)
+    agendaChanged = Signal(dict)
+    timetableChanged = Signal(dict)
+    weeklyTimetableRequested = Signal()
+    layoutEditRequested = Signal()
+    layoutSaveRequested = Signal(dict)
+    layoutCancelRequested = Signal()
     todoEditorRequested = Signal(int)
     todoDeleteRequested = Signal(int)
 
@@ -35,17 +67,38 @@ class DashboardBridge(QObject):
         parent: QObject | None = None,
         *,
         todo_service: TodoServiceLike | None = None,
+        agenda_service: AgendaServiceLike | None = None,
+        timetable_service: TimetableServiceLike | None = None,
+        profile_service: ProfileServiceLike | None = None,
         clock: Clock | None = None,
     ) -> None:
         super().__init__(parent)
         self._todo_service = todo_service
+        self._agenda_service = agenda_service
+        self._timetable_service = timetable_service
+        self._profile_service = profile_service
         self._clock = clock or SystemClock()
         self._mode = AppMode.INTERACTION
+        self._profile_state_override: ProfileState | None = None
 
     @Slot()
     def notifyReady(self) -> None:  # noqa: N802
         self.shellReady.emit()
         self.publish_todos()
+
+    @Slot()
+    def requestInitialState(self) -> None:  # noqa: N802
+        """Publish one coarse snapshot for the web render-state mirror."""
+        self.shellReady.emit()
+        self.stateChanged.emit(
+            present_dashboard_state(
+                todo_service=self._todo_service,
+                agenda_service=self._agenda_service,
+                clock=self._clock,
+                mode=self._mode,
+                profile=self._profile_payload(),
+            )
+        )
 
     @Slot()
     def openSettings(self) -> None:  # noqa: N802
@@ -56,6 +109,23 @@ class DashboardBridge(QObject):
             raise TypeError("mode must be an AppMode")
         self._mode = mode
         self.modeChanged.emit(mode.value)
+
+    @Slot()
+    def enterLayoutEdit(self) -> None:  # noqa: N802
+        if self._mode in (AppMode.LOCKED, AppMode.INTERACTION):
+            self.layoutEditRequested.emit()
+
+    @Slot("QVariantMap")
+    def saveLayout(self, layout_state: dict[str, object]) -> None:  # noqa: N802
+        if self._mode is AppMode.LAYOUT_EDIT:
+            if not isinstance(layout_state, dict):
+                raise TypeError("layout_state must be a mapping")
+            self.layoutSaveRequested.emit(dict(layout_state))
+
+    @Slot()
+    def cancelLayoutEdit(self) -> None:  # noqa: N802
+        if self._mode is AppMode.LAYOUT_EDIT:
+            self.layoutCancelRequested.emit()
 
     @Slot(str)
     def addQuickTodo(self, content: str) -> None:  # noqa: N802
@@ -100,16 +170,85 @@ class DashboardBridge(QObject):
             return
         self.todoDeleteRequested.emit(_todo_id(todo_id))
 
+    @Slot()
+    def requestWeeklyTimetable(self) -> None:  # noqa: N802
+        if self._mode is AppMode.INTERACTION:
+            self.weeklyTimetableRequested.emit()
+            self.publish_timetable()
+
+    def publish_timetable(self, *, header_mode: str = "weekday_date") -> None:
+        if self._timetable_service is None:
+            return
+        week = self._timetable_service.get_current_week(
+            self._clock.today(),
+            header_mode=header_mode,
+        )
+        self.timetableChanged.emit(present_timetable(week, header_mode=header_mode))
+
     def publish_todos(self) -> None:
         if self._todo_service is None:
             self.todosChanged.emit([])
+        else:
+            payload = present_todos(
+                self._todo_service.get_dashboard_items(),
+                today=self._clock.today(),
+                now=self._clock.now(),
+            )
+            self.todosChanged.emit(payload)
+        if self._agenda_service is not None:
+            self.publish_agenda()
+
+    def publish_agenda(self) -> None:
+        if self._agenda_service is None:
+            self.agendaChanged.emit(
+                {"date": self._clock.today().isoformat(), "timedItems": [], "dateOnlyItems": []}
+            )
             return
-        payload = present_todos(
-            self._todo_service.get_dashboard_items(),
-            today=self._clock.today(),
-            now=self._clock.now(),
+        self.agendaChanged.emit(
+            present_today_agenda(self._agenda_service.get_today(self._clock.today()))
         )
-        self.todosChanged.emit(payload)
+
+    def publish_state(self) -> None:
+        self.stateChanged.emit(
+            present_dashboard_state(
+                todo_service=self._todo_service,
+                agenda_service=self._agenda_service,
+                clock=self._clock,
+                mode=self._mode,
+                profile=self._profile_payload(),
+            )
+        )
+
+    def publish_profile_state(self, state: ProfileState) -> None:
+        if not isinstance(state, ProfileState):
+            raise TypeError("state must be a ProfileState")
+        self._profile_state_override = state
+        self.profileChanged.emit(self._profile_payload())
+
+    def set_profile_state(self, state: ProfileState) -> None:
+        """Set the in-memory render state before the Web page requests its snapshot."""
+
+        if not isinstance(state, ProfileState):
+            raise TypeError("state must be a ProfileState")
+        self._profile_state_override = state
+
+    def publish_profile(self, state: ProfileState | None = None) -> None:
+        """Emit the current presentation Profile, optionally using a runtime state."""
+
+        if state is not None:
+            self.publish_profile_state(state)
+        else:
+            self.profileChanged.emit(self._profile_payload())
+
+    def _profile_payload(self) -> dict[str, object]:
+        profile = self._profile_service.current_profile if self._profile_service else None
+        state = self._profile_state_override or (profile.state if profile else ProfileState())
+        return present_profile_state(
+            state,
+            profile_id=profile.id if profile else None,
+            name=profile.name if profile else None,
+            is_builtin=profile.is_builtin if profile else None,
+        )
 
     def _todo_commands_enabled(self) -> bool:
         return self._mode is AppMode.INTERACTION and self._todo_service is not None

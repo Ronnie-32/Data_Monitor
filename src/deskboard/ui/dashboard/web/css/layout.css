@@ -1,0 +1,58 @@
+.dashboard-surface {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.layout-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -6px 0 10px;
+  padding: 7px 9px;
+  border: 1px solid rgba(37, 99, 235, .16);
+  border-radius: 9px;
+  background: rgba(239, 246, 255, .85);
+  color: #1e3a8a;
+  font-size: 12px;
+}
+
+.layout-toolbar[hidden] { display: none; }
+.layout-toolbar-title { font-weight: 700; }
+.layout-toolbar button { padding: 5px 9px; }
+.layout-toolbar button:first-of-type { background: #dbeafe; color: #1e3a8a; }
+.layout-visibility-controls { display: flex; flex-wrap: wrap; gap: 7px; margin-left: auto; }
+.layout-visibility-label { display: inline-flex; align-items: center; gap: 3px; }
+
+.widgets-grid.grid-stack {
+  display: block;
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  --gs-item-margin-top: 0px;
+  --gs-item-margin-bottom: 0px;
+  --gs-item-margin-left: 4px;
+  --gs-item-margin-right: 4px;
+}
+
+.grid-stack-item-content {
+  overflow: hidden;
+}
+
+.grid-stack-item.layout-item-hidden {
+  visibility: hidden;
+}
+
+body[data-mode="layout_edit"] .grid-stack-item-content {
+  outline: 1px dashed rgba(37, 99, 235, .22);
+}
+
+body[data-mode="layout_edit"] .grid-stack-item:hover .grid-stack-item-content {
+  outline-color: rgba(37, 99, 235, .62);
+}

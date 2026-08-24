@@ -36,7 +36,13 @@ def main(argv: list[str] | None = None) -> int:
     from deskboard.database.connection import connect_database
     from deskboard.database.schema import migrate
     from deskboard.infrastructure.clock import SystemClock
+    from deskboard.repositories.course_repository import CourseRepository
+    from deskboard.repositories.profile_repository import ProfileRepository
     from deskboard.repositories.todo_repository import TodoRepository
+    from deskboard.services.agenda_service import AgendaService
+    from deskboard.services.course_service import CourseService
+    from deskboard.services.profile_service import ProfileService
+    from deskboard.services.timetable_service import TimetableService
     from deskboard.services.todo_service import TodoService
     from deskboard.ui.dashboard.window import DashboardWindow
     from deskboard.ui.settings.window import SettingsWindow
@@ -54,8 +60,18 @@ def main(argv: list[str] | None = None) -> int:
     migrate(connection)
     clock = SystemClock()
     todo_service = TodoService(TodoRepository(connection), clock)
+    course_service = CourseService(CourseRepository(connection), clock)
+    profile_service = ProfileService(ProfileRepository(connection), clock)
+    agenda_service = AgendaService(todo_service, course_service)
+    timetable_service = TimetableService(todo_service, course_service)
     qt_application.aboutToQuit.connect(connection.close)
-    dashboard = DashboardWindow(todo_service=todo_service, clock=clock)
+    dashboard = DashboardWindow(
+        todo_service=todo_service,
+        agenda_service=agenda_service,
+        timetable_service=timetable_service,
+        profile_service=profile_service,
+        clock=clock,
+    )
 
     def make_settings(set_mode, show_dashboard, hide_dashboard, exit_application):
         return SettingsWindow(

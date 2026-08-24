@@ -84,6 +84,9 @@ class TodoService:
     def get_for_date(self, day: date) -> list[Todo]:
         return self._repository.list_for_date(day)
 
+    def get_for_agenda_date(self, day: date) -> list[Todo]:
+        return self._repository.list_for_agenda_date(day)
+
 
 def _content(value: object) -> str:
     if not isinstance(value, str):

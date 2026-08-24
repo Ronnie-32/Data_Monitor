@@ -124,12 +124,12 @@ NOT_APPLICABLE
 | AUT-AGENDA-03 | Automated | 10,11 | Timed sort | Provide out-of-order timed items. | Output sorted by start time. | tests/unit/services/test_agenda_service.py |  |
 | AUT-AGENDA-04 | Automated | 10,11 | Date selection | Include items from today and other dates. | Only today's eligible items appear. | tests/unit/services/test_agenda_service.py |  |
 | AUT-AGENDA-05 | Automated | 10,11 | Past visibility | Set current local time after morning items. | Past timed items remain in agenda and are not marked hidden/grey by time alone. | tests/unit/services/test_agenda_service.py |  |
-| AUT-AGENDA-06 | Automated | 10,11 | Deadline exclusion | Todo has deadline today but no planned date/time. | It does not enter agenda. | tests/unit/services/test_agenda_service.py |  |
+| AUT-AGENDA-06 | Automated | 10,11 | Today deadline inclusion | Todo is due today with no planned date, or with a planned date on another day. | It enters the date-only section; its planned time is not projected onto today. | tests/unit/services/test_agenda_service.py |  |
 | AUT-AGENDA-07 | Automated | 10,11 | Completed state | Scheduled Todo completed today. | It remains in agenda with completed state. | tests/unit/services/test_agenda_service.py |  |
 | AUT-AGENDA-08 | Automated | 10,11 | Date-only section | Todo planned_date=today and no time. | It appears after timed section. | tests/unit/services/test_agenda_service.py |  |
 | AUT-AGENDA-09 | Automated | 10,11 | Date-only ordering | Multiple date-only Todos with manual orders. | They follow Todo manual order. | tests/unit/services/test_agenda_service.py |  |
 | AUT-AGENDA-10 | Automated | 10,11 | Timed/date-only partition | Mix timed and date-only Todos. | All timed precede date-only regardless of Todo manual order. | tests/unit/services/test_agenda_service.py |  |
-| AUT-AGENDA-11 | Automated | 10,11 | Unplanned exclusion | Todo has no planned date/time. | It does not enter agenda. | tests/unit/services/test_agenda_service.py |  |
+| AUT-AGENDA-11 | Automated | 10,11 | Unplanned exclusion | Todo has no planned date/time and no deadline today. | It does not enter agenda. | tests/unit/services/test_agenda_service.py |  |
 | AUT-TT-01 | Automated | 10,12 | Teaching label | Current week inside active semester teaching range. | weekLabel = 第 N 周. | tests/unit/services/test_timetable_service.py |  |
 | AUT-TT-02 | Automated | 10,12 | Teaching label | Current week outside active semester range. | weekLabel is blank while eligible one-offs may remain. | tests/unit/services/test_timetable_service.py |  |
 | AUT-TT-03 | Automated | 10,12 | Week scope | Build timetable for local current week. | Exactly Monday–Sunday dates for current week are represented. | tests/unit/services/test_timetable_service.py |  |

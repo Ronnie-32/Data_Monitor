@@ -1,0 +1,117 @@
+"""Build the coarse, JSON-friendly state owned by the Dashboard bridge."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Protocol, TypedDict
+
+from deskboard.app.modes import AppMode
+from deskboard.infrastructure.clock import Clock
+from deskboard.presentation.agenda_presenter import present_today_agenda
+from deskboard.presentation.todo_presenter import present_todos
+
+
+class TodoStateService(Protocol):
+    def get_dashboard_items(self): ...
+
+
+class AgendaStateService(Protocol):
+    def get_today(self, day):
+        ...
+
+
+class DashboardState(TypedDict):
+    app: dict[str, object]
+    profile: dict[str, object]
+    widgets: dict[str, object]
+    todos: list[dict[str, object]]
+    agenda: dict[str, object]
+    weather: dict[str, object]
+    finance: dict[str, object]
+    networkStatus: dict[str, object]
+
+
+def present_dashboard_state(
+    *,
+    todo_service: TodoStateService | None,
+    agenda_service: AgendaStateService | None,
+    clock: Clock,
+    mode: AppMode | str = AppMode.INTERACTION,
+    profile: Mapping[str, object] | None = None,
+    widgets: Mapping[str, object] | None = None,
+    weather: Mapping[str, object] | None = None,
+    finance: Mapping[str, object] | None = None,
+    network_status: Mapping[str, object] | None = None,
+) -> DashboardState:
+    """Collect current service presentations in one coarse state snapshot.
+
+    The optional sections are intentionally empty until their owning tasks add
+    the corresponding services. They remain part of the contract so the web
+    page can keep one stable render-state shape as the Dashboard grows.
+    """
+
+    today = clock.today()
+    agenda = (
+        present_today_agenda(agenda_service.get_today(today))
+        if agenda_service is not None
+        else _empty_agenda(today.isoformat())
+    )
+    todos = (
+        present_todos(
+            todo_service.get_dashboard_items(),
+            today=today,
+            now=clock.now(),
+        )
+        if todo_service is not None
+        else []
+    )
+    mode_value = mode.value if isinstance(mode, AppMode) else _mode_value(mode)
+    return {
+        "app": {"mode": mode_value, "today": today.isoformat()},
+        "profile": dict(profile or {}),
+        "widgets": dict(widgets or {"todo": {}, "today_agenda": {}}),
+        "todos": todos,
+        "agenda": agenda,
+        "weather": dict(weather or {}),
+        "finance": dict(finance or {}),
+        "networkStatus": dict(network_status or {"state": "grey"}),
+    }
+
+
+def build_dashboard_state(**kwargs) -> DashboardState:
+    """Compatibility alias for callers that name the operation as a builder."""
+
+    return present_dashboard_state(**kwargs)
+
+
+class DashboardStatePresenter:
+    """Reusable presenter bound to the Dashboard's service dependencies."""
+
+    def __init__(
+        self,
+        *,
+        todo_service: TodoStateService | None,
+        agenda_service: AgendaStateService | None,
+        clock: Clock,
+    ) -> None:
+        self._todo_service = todo_service
+        self._agenda_service = agenda_service
+        self._clock = clock
+
+    def present(self, *, mode: AppMode | str = AppMode.INTERACTION) -> DashboardState:
+        return present_dashboard_state(
+            todo_service=self._todo_service,
+            agenda_service=self._agenda_service,
+            clock=self._clock,
+            mode=mode,
+        )
+
+
+def _empty_agenda(day: str) -> dict[str, object]:
+    return {"date": day, "timedItems": [], "dateOnlyItems": []}
+
+
+def _mode_value(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        raise TypeError("mode must be an AppMode or non-empty string")
+    return value

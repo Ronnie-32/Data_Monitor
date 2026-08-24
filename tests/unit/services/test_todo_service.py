@@ -216,6 +216,26 @@ def test_get_for_date_uses_planned_date_only_and_manual_order(service):
     assert other_day.id not in {item.id for item in items}
 
 
+def test_get_for_agenda_date_includes_planned_or_deadline_date(service):
+    deadline_only = service.update(
+        service.add_quick("deadline only").id,
+        TodoUpdate(deadline_date=date(2026, 8, 21)),
+    )
+    planned = service.update(
+        service.add_quick("planned").id,
+        TodoUpdate(planned_date=date(2026, 8, 21)),
+    )
+    other_day = service.update(
+        service.add_quick("other").id,
+        TodoUpdate(deadline_date=date(2026, 8, 22)),
+    )
+
+    items = service.get_for_agenda_date(date(2026, 8, 21))
+
+    assert [item.id for item in items] == [planned.id, deadline_only.id]
+    assert other_day.id not in {item.id for item in items}
+
+
 def test_service_uses_injected_clock_and_rejects_missing_ids(service, clock):
     typed_clock: Clock = clock
     assert typed_clock.today() == date(2026, 8, 21)

@@ -68,7 +68,7 @@
 | REQ-THEME-03 | Finance direction convention is red=up, green=down, explicit sign; gold may use theme accent. | Spec §10, §16.6 | 22,23 | AUT-FIN-11; MAN-UI-05 | Automated + manual |  |
 | REQ-TODO-01 | Todo fields/semantics: content, optional deadline, optional planned date/time, completion via completed_at, manual display order; no priority/tags/subtasks/recurrence/reminders/etc. | Spec §11.1–11.2 | 5,6 | AUT-TODO-01; REV-TODO-01 | Automated + review |  |
 | REQ-TODO-02 | Deadline combinations: date+time exact; date-only; time-only defaults date to today; neither means no deadline. | Spec §11.3 | 6 | AUT-TODO-02..05 | Automated |  |
-| REQ-TODO-03 | Deadline alone never places Todo in Today Agenda/timetable; overdue incomplete Todo remains visible with only subtle warning allowed. | Spec §11.3 | 6,10,11,12,23 | AUT-TODO-06; AUT-AGENDA-06; AUT-TT-08 | Automated |  |
+| REQ-TODO-03 | A Todo due today appears in Today Agenda regardless of planned date; it is date-only when its planned date is missing/another date, while deadline alone never creates a timetable event; overdue incomplete Todo remains visible with only subtle warning allowed. | Spec §11.3, §13.2, §14.5 | 6,10,11,12,23 | AUT-TODO-06; AUT-AGENDA-06; AUT-TT-08 | Automated |  |
 | REQ-TODO-04 | Planned forms: date-only, point time, range; time without date defaults today; range end > start. | Spec §11.4 | 6 | AUT-TODO-07..11 | Automated |  |
 | REQ-TODO-05 | Main Todo widget shows all incomplete Todos regardless of future date plus Todos completed today; older completed Todos are excluded. | Spec §11.5 | 6,7 | AUT-TODO-12..14 | Automated |  |
 | REQ-TODO-06 | Todo ordering is manual only: new item at top; completion does not move it; deadline/planned time do not auto-sort. | Spec §11.5 | 6,7 | AUT-TODO-15..18 | Automated |  |
@@ -89,7 +89,7 @@
 | REQ-AGENDA-02 | Timed section contains today's actual courses + point/range planned Todos and sorts by start time. | Spec §13.1 | 10,11 | AUT-AGENDA-02..04 | Automated |  |
 | REQ-AGENDA-03 | Past and future timed items remain visible all day; no time-passed hide/grey. | Spec §13.1 | 10,11,23 | AUT-AGENDA-05; MAN-UI-08 | Automated + manual |  |
 | REQ-AGENDA-04 | Date-only planned Todo for today appears after timed items; multiple date-only items follow Todo manual order. | Spec §13.2 | 10,11 | AUT-AGENDA-08..10 | Automated |  |
-| REQ-AGENDA-05 | Todo with no planned date/time does not appear; deadline alone does not appear. | Spec §13.2 | 10,11 | AUT-AGENDA-06; AUT-AGENDA-11 | Automated |  |
+| REQ-AGENDA-05 | Todo with no planned date/time appears only when its deadline is today; a today deadline is date-only unless planned date is today, and other unplanned Todos do not appear. | Spec §13.2 | 10,11 | AUT-AGENDA-06; AUT-AGENDA-11 | Automated |  |
 | REQ-AGENDA-06 | Today Agenda is view-only; rows not editable/completable; title click in Interaction opens timetable. | Spec §13.3 | 11,12 | AUT-BRIDGE-07; MAN-AGENDA-01 | Automated + manual |  |
 | REQ-TT-01 | Weekly timetable is an overlay inside the single Dashboard Web page, view-only, current local week only, Mon–Sun seven columns, no week navigation. | Spec §14, §14.1 | 12 | AUT-TT-03..05; MAN-TT-01 | Automated + manual |  |
 | REQ-TT-02 | Week label is 第N周 inside teaching range and blank outside. | Spec §14.1 | 10,12 | AUT-TT-01..02 | Automated |  |

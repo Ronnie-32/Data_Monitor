@@ -135,11 +135,13 @@ def test_ready_publishes_current_todos_and_bridge_has_no_persistence_logic():
 def test_dashboard_todo_assets_use_bridge_commands_and_mode_gating():
     web_root = Path("src/deskboard/ui/dashboard/web")
     html = (web_root / "index.html").read_text(encoding="utf-8")
+    app = (web_root / "js/app.js").read_text(encoding="utf-8")
     javascript = (web_root / "js/widgets/todo.js").read_text(encoding="utf-8")
     css = (web_root / "css/widgets.css").read_text(encoding="utf-8")
 
     assert 'type="module"' in html
-    assert "./js/widgets/todo.js" in html
+    assert "./js/app.js" in html
+    assert "./widgets/todo.js" in app
     assert "./css/widgets.css" in html
     for command in (
         "addQuickTodo",

@@ -128,6 +128,13 @@ class TodoRepository:
     def list_for_date(self, day: date) -> list[Todo]:
         return self._list("planned_date = ?", (day.isoformat(),))
 
+    def list_for_agenda_date(self, day: date) -> list[Todo]:
+        day_text = day.isoformat()
+        return self._list(
+            "planned_date = ? OR deadline_date = ?",
+            (day_text, day_text),
+        )
+
     def reorder(self, ordered_ids: list[int]) -> None:
         if len(ordered_ids) != len(set(ordered_ids)):
             raise ValueError("Todo reorder IDs must be unique")

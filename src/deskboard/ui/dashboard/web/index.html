@@ -4,7 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DeskBoard</title>
+  <link rel="stylesheet" href="./vendor/gridstack/gridstack.min.css">
   <link rel="stylesheet" href="./css/widgets.css">
+  <link rel="stylesheet" href="./css/layout.css">
+  <link rel="stylesheet" href="./css/timetable.css">
 </head>
 <body data-mode="interaction">
   <div id="edit-dragbar">拖动此区域移动看板；四边和四角可缩放</div>
@@ -14,41 +17,80 @@
       <div id="mode" class="shell-mode">interaction</div>
       <button id="settings" class="settings-button" type="button">打开设置</button>
     </header>
-    <section class="widget todo-widget" aria-labelledby="todo-title">
-      <header class="widget-header">
-        <h2 id="todo-title" class="widget-title">Todo</h2>
-        <button id="todo-add" class="todo-add" type="button" aria-label="快速添加待办">+</button>
-      </header>
-      <form id="todo-add-form" class="todo-add-form">
-        <input id="todo-add-input" class="todo-add-input" maxlength="500"
-               autocomplete="off" placeholder="输入待办内容，按 Enter 保存" aria-label="待办内容">
-      </form>
-      <div class="todo-scroll"><ul id="todo-list" class="todo-list"></ul></div>
+    <div id="layout-toolbar" class="layout-toolbar" hidden>
+      <span class="layout-toolbar-title">布局编辑</span>
+      <button id="layout-save" type="button">保存</button>
+      <button id="layout-cancel" type="button">取消</button>
+      <div id="layout-visibility-controls" class="layout-visibility-controls"></div>
+    </div>
+    <section id="widgets-grid" class="widgets-grid grid-stack" aria-label="Dashboard widgets">
+      <article class="grid-stack-item" gs-x="1" gs-y="0" gs-w="5" gs-h="6" data-widget-key="todo">
+        <div class="grid-stack-item-content">
+          <section class="widget todo-widget" aria-labelledby="todo-title">
+            <header class="widget-header">
+              <h2 id="todo-title" class="widget-title">Todo</h2>
+              <button id="todo-add" class="todo-add" type="button" aria-label="快速添加待办">+</button>
+            </header>
+            <form id="todo-add-form" class="todo-add-form">
+              <input id="todo-add-input" class="todo-add-input" maxlength="500"
+                     autocomplete="off" placeholder="输入待办内容，按 Enter 保存" aria-label="待办内容">
+            </form>
+            <div class="todo-scroll"><ul id="todo-list" class="todo-list"></ul></div>
+          </section>
+        </div>
+      </article>
+      <article class="grid-stack-item" gs-x="6" gs-y="0" gs-w="5" gs-h="6" data-widget-key="today_agenda">
+        <div class="grid-stack-item-content">
+          <section class="widget agenda-widget" aria-labelledby="agenda-title">
+            <header class="widget-header">
+              <button id="agenda-title" class="widget-title widget-title-button" type="button">
+                Today Agenda
+              </button>
+            </header>
+            <div class="agenda-scroll">
+              <section class="agenda-section" aria-labelledby="agenda-timed-heading">
+                <h3 id="agenda-timed-heading" class="agenda-section-title">定时事项</h3>
+                <ul id="agenda-timed-list" class="agenda-list"></ul>
+              </section>
+              <section class="agenda-section" aria-labelledby="agenda-date-only-heading">
+                <h3 id="agenda-date-only-heading" class="agenda-section-title">Today Items</h3>
+                <ul id="agenda-date-only-list" class="agenda-list"></ul>
+              </section>
+            </div>
+          </section>
+        </div>
+      </article>
     </section>
   </main>
+  <div id="timetable-overlay" class="timetable-overlay" hidden aria-hidden="true">
+    <section class="timetable-dialog" role="dialog" aria-labelledby="timetable-title">
+      <header class="timetable-toolbar">
+        <h2 id="timetable-title" class="timetable-title">Weekly Timetable</h2>
+        <span id="timetable-week-label" class="timetable-week-label"></span>
+        <button id="timetable-close" class="timetable-close" type="button">关闭</button>
+      </header>
+      <div id="timetable-empty" class="timetable-empty" hidden></div>
+      <div id="timetable-ready" class="timetable-ready" hidden>
+        <div class="timetable-header-row">
+          <div aria-hidden="true"></div>
+          <div id="timetable-headers" class="timetable-header-days"></div>
+        </div>
+        <div class="timetable-stage">
+          <div class="timetable-body">
+            <aside id="timetable-axis" class="timetable-axis" aria-label="节次"></aside>
+            <div id="timetable-days" class="timetable-days"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
   <div id="todo-context-menu" class="todo-context-menu" role="menu">
     <button type="button" data-action="edit">Edit details</button>
     <button type="button" data-action="toggle">Mark incomplete</button>
     <button type="button" data-action="delete">Delete</button>
   </div>
   <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-  <script type="module">
-    import { createTodoWidget } from "./js/widgets/todo.js";
-    new QWebChannel(qt.webChannelTransport, function (channel) {
-      const bridge = channel.objects.bridge;
-      const todoWidget = createTodoWidget(bridge);
-      const applyMode = function (mode) {
-        document.body.dataset.mode = mode;
-        document.getElementById("mode").textContent = mode;
-        todoWidget.setMode();
-      };
-      bridge.modeChanged.connect(applyMode);
-      bridge.todosChanged.connect(todoWidget.render);
-      document.getElementById("settings").addEventListener("click", function () {
-        bridge.openSettings();
-      });
-      bridge.notifyReady();
-    });
-  </script>
+  <script src="./vendor/gridstack/gridstack-all.js"></script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>

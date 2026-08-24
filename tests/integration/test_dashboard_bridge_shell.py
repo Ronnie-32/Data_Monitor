@@ -25,11 +25,15 @@ def test_dashboard_declares_exactly_one_webengine_view_and_local_page():
     source = Path("src") / source
     text = source.read_text(encoding="utf-8")
     html = DashboardWindow.web_page_path().read_text(encoding="utf-8")
+    app = (DashboardWindow.web_page_path().parent / "js" / "app.js").read_text(
+        encoding="utf-8"
+    )
 
     assert text.count("QWebEngineView(") == 1
     assert "setMinimumSize(" not in text
     assert "qrc:///qtwebchannel/qwebchannel.js" in html
-    assert "bridge.notifyReady()" in html
+    assert './js/app.js' in html
+    assert "requestInitialState" in app
     assert 'id="edit-dragbar"' in html
     assert "beginWindowMove" not in html
     assert "beginWindowResize" not in html

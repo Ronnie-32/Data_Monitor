@@ -94,8 +94,8 @@ class AgendaService:
         ]
         todo_items = [
             _todo_item(todo, day)
-            for todo in self._todo_service.get_for_date(day)
-            if todo.planned_date == day
+            for todo in self._todo_service.get_for_agenda_date(day)
+            if todo.planned_date == day or todo.deadline_date == day
         ]
 
         timed_items = [
@@ -130,19 +130,26 @@ def _course_item(occurrence: CourseOccurrence) -> AgendaItem:
 
 
 def _todo_item(todo: Todo, day: date) -> AgendaItem:
-    if todo.planned_start_time is None:
+    has_planned_schedule_today = todo.planned_date == day
+    if not has_planned_schedule_today or todo.planned_start_time is None:
         time_kind: AgendaTimeKind = "date_only"
+        start = None
+        end = None
     elif todo.planned_end_time is None:
         time_kind = "point"
+        start = todo.planned_start_time
+        end = None
     else:
         time_kind = "range"
+        start = todo.planned_start_time
+        end = todo.planned_end_time
     return AgendaItem(
         id=todo.id,
         type="todo",
         title=todo.content,
         date=day,
-        start=todo.planned_start_time,
-        end=todo.planned_end_time,
+        start=start,
+        end=end,
         time_kind=time_kind,
         completed=todo.is_completed,
         source="todo",

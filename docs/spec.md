@@ -536,7 +536,12 @@ Legal combinations:
 - time only → date defaults to today;
 - neither → no Deadline.
 
-Deadline never places a Todo into Today Agenda or weekly timetable.
+When `deadline_date == today`, a Todo appears in Today Agenda even if its
+`planned_date` is missing or another date. If its planned date is not today,
+it appears as a date-only item because its planned time belongs to another
+date; if its planned date is today, its planned point/range time keeps the
+normal timed-item behavior. A deadline date alone never creates a weekly
+timetable event.
 
 An overdue incomplete Todo remains visible. V1 may apply only a subtle warning color to Deadline text; no notification or explicit alert is required.
 
@@ -760,6 +765,9 @@ TodoService
 → AgendaService
 ```
 
+Todo eligibility for Today Agenda is the union of `planned_date == today`
+and `deadline_date == today`; if both dates match, the Todo appears only once.
+
 ### 13.1 Timed section
 
 Include:
@@ -774,13 +782,14 @@ Do not hide or grey an item merely because its time has already passed. All of t
 
 ### 13.2 Date-only section
 
-A Todo whose `planned_date == today` but has no planned time appears **after all timed items** in a date-only/Today Items section.
+A Todo whose `planned_date == today` but has no planned time, or whose
+`deadline_date == today` while its planned date is missing/another date,
+appears **after all timed items** in a date-only/Today Items section.
 
 Multiple date-only Todos follow their Todo manual order.
 
-A Todo with no planned date/time does not appear in Today Agenda.
-
-Deadline alone never places a Todo in Today Agenda.
+A Todo with no planned date/time and no deadline due today does not appear in
+Today Agenda.
 
 ### 13.3 Interaction
 

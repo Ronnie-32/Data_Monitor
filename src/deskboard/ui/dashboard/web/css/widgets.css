@@ -27,13 +27,22 @@ body { padding: 12px; color: #243044; }
   font-size: 12px;
 }
 button { border: 0; border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+button:disabled { cursor: default; }
 .settings-button { margin-left: auto; background: #dbeafe; color: #1e3a8a; }
 
+.widgets-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  width: 100%;
+  height: calc(100% - 52px);
+  min-height: 0;
+}
 .widget {
   display: flex;
   flex-direction: column;
-  width: min(440px, 100%);
-  height: calc(100% - 52px);
+  width: 100%;
+  height: 100%;
   min-height: 210px;
   overflow: hidden;
   border: 1px solid rgba(100, 116, 139, .16);
@@ -42,6 +51,8 @@ button { border: 0; border-radius: 8px; padding: 7px 10px; cursor: pointer; }
 }
 .widget-header { flex: 0 0 auto; display: flex; align-items: center; padding: 12px 14px; }
 .widget-title { margin: 0; font-size: 16px; }
+.widget-title-button { background: transparent; color: inherit; padding: 0; text-align: left; }
+.widget-title-button:hover { color: #2563eb; }
 .todo-add { margin-left: auto; width: 30px; height: 30px; padding: 0; font-size: 20px; }
 .todo-add-form { flex: 0 0 auto; display: none; padding: 0 14px 10px; }
 .todo-add-form.is-open { display: block; }
@@ -73,6 +84,27 @@ body:not([data-mode="interaction"]) .todo-scroll { overflow: hidden; }
 .todo-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 3px; color: #7c8799; font-size: 11px; }
 .todo-deadline.is-overdue { color: #b45353; }
 .todo-empty { padding: 24px 8px; text-align: center; color: #94a3b8; font-size: 13px; }
+.agenda-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 8px 10px; }
+body:not([data-mode="interaction"]) .agenda-scroll { overflow: hidden; }
+.agenda-section + .agenda-section { margin-top: 12px; }
+.agenda-section-title { margin: 0; padding: 0 8px 6px; color: #64748b; font-size: 11px; font-weight: 600; }
+.agenda-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+.agenda-item {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 7px;
+  align-items: start;
+  padding: 8px;
+  border-radius: 9px;
+  background: rgba(248, 250, 252, .85);
+}
+.agenda-item.is-completed { background: #e4f5e9; color: #356044; }
+.agenda-item.is-conflict { border-left: 3px solid #d6a04d; }
+.agenda-time { color: #64748b; font-size: 12px; font-variant-numeric: tabular-nums; }
+.agenda-content { overflow-wrap: anywhere; font-size: 14px; line-height: 1.35; }
+.agenda-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 3px; color: #7c8799; font-size: 11px; }
+.agenda-conflict { color: #a16207; }
+.agenda-empty { padding: 10px 8px; color: #94a3b8; font-size: 12px; }
 .todo-context-menu {
   position: fixed;
   z-index: 10;
@@ -107,3 +139,8 @@ body:not([data-mode="interaction"]) .todo-scroll { overflow: hidden; }
 }
 body[data-mode="layout_edit"] #edit-dragbar { display: flex; }
 body[data-mode="layout_edit"] .dashboard-surface { padding-top: 46px; }
+
+@media (max-width: 720px) {
+  .widgets-grid { grid-template-columns: minmax(0, 1fr); overflow-y: auto; }
+  .widget { min-height: 210px; height: 320px; }
+}
