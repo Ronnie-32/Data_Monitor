@@ -46,7 +46,7 @@ def test_layout_round_trip_keeps_fixed_12_column_topology_when_window_resizes():
 def test_runtime_default_widgets_are_narrower_and_centered_with_room_between_them():
     state = default_layout_state(ProfileState())
 
-    assert [(widget.x, widget.w) for widget in state.widgets] == [(1, 5), (6, 5)]
+    assert [(widget.x, widget.w) for widget in state.widgets] == [(1, 5), (6, 5), (1, 10)]
 
 
 def test_profile_presentation_contains_only_dashboard_owned_layout_fields():

@@ -145,11 +145,21 @@ def profile_state_from_layout(
 
 
 def default_layout_state(base_state: ProfileState | None = None) -> ProfileState:
-    """Return conservative runtime defaults for the two current Dashboard widgets."""
+    """Return runtime defaults for the current Dashboard widget shell."""
 
     base = base_state or ProfileState()
     if base.widgets:
-        return base
+        if any(widget.widget_key == "weather" for widget in base.widgets):
+            return base
+        return ProfileState(
+            window_x=base.window_x,
+            window_y=base.window_y,
+            window_width=base.window_width,
+            window_height=base.window_height,
+            theme_key=base.theme_key,
+            panel_opacity=base.panel_opacity,
+            widgets=base.widgets + (ProfileWidgetState("weather", True, 1, 6, 10, 3),),
+        )
     return ProfileState(
         window_x=base.window_x,
         window_y=base.window_y,
@@ -160,6 +170,7 @@ def default_layout_state(base_state: ProfileState | None = None) -> ProfileState
         widgets=(
             ProfileWidgetState("todo", True, 1, 0, 5, 6),
             ProfileWidgetState("today_agenda", True, 6, 0, 5, 6),
+            ProfileWidgetState("weather", True, 1, 6, 10, 3),
         ),
     )
 

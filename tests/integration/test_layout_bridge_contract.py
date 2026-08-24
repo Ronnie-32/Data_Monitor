@@ -314,7 +314,7 @@ def test_dashboard_web_page_loads_local_gridstack_layout_shell():
     QTimer.singleShot(5000, evaluate_loop.quit)
     evaluate_loop.exec()
 
-    assert values == ['{"grid":"function","items":2,"toolbar":true}']
+    assert values == ['{"grid":"function","items":3,"toolbar":true}']
     window.close()
     del app
 

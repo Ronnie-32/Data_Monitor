@@ -28,7 +28,19 @@ body { padding: 12px; color: #243044; }
 }
 button { border: 0; border-radius: 8px; padding: 7px 10px; cursor: pointer; }
 button:disabled { cursor: default; }
-.settings-button { margin-left: auto; background: #dbeafe; color: #1e3a8a; }
+.settings-button { background: #dbeafe; color: #1e3a8a; }
+.network-status { margin-left: auto; display: inline-flex; align-items: center; }
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #94a3b8;
+  box-shadow: 0 0 0 3px rgba(148, 163, 184, .14);
+}
+.status-dot[data-state="green"] { background: #43a86b; box-shadow: 0 0 0 3px rgba(67, 168, 107, .18); }
+.status-dot[data-state="red"] { background: #c45b5b; box-shadow: 0 0 0 3px rgba(196, 91, 91, .18); }
+.status-dot[data-state="grey"] { background: #94a3b8; }
 
 .widgets-grid {
   display: grid;
@@ -105,6 +117,32 @@ body:not([data-mode="interaction"]) .agenda-scroll { overflow: hidden; }
 .agenda-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 3px; color: #7c8799; font-size: 11px; }
 .agenda-conflict { color: #a16207; }
 .agenda-empty { padding: 10px 8px; color: #94a3b8; font-size: 12px; }
+.weather-mode { margin-left: auto; color: #7c8799; font-size: 11px; }
+.weather-cities {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-content: start;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 8px 10px;
+}
+.weather-city-card {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(148, 163, 184, .18);
+  border-radius: 10px;
+  background: rgba(248, 250, 252, .85);
+}
+.weather-city-heading { display: flex; align-items: baseline; gap: 8px; }
+.weather-city-name { margin: 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.weather-condition { overflow: hidden; color: #64748b; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.weather-reading { margin-top: 4px; }
+.weather-current { color: #243044; font-size: 24px; font-variant-numeric: tabular-nums; }
+.weather-range { display: flex; gap: 10px; margin-top: 2px; color: #64748b; font-size: 11px; }
+.weather-wind { margin-top: 5px; overflow: hidden; color: #7c8799; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.weather-empty { align-self: center; padding: 18px 8px; color: #94a3b8; font-size: 12px; text-align: center; }
 .todo-context-menu {
   position: fixed;
   z-index: 10;

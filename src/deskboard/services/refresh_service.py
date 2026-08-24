@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -64,6 +64,7 @@ class DataRefreshService:
         self._started = False
         self._next_refresh_at: datetime | None = None
         self._dashboard_visible = True
+        self._listeners: list[Callable[[str], None]] = []
         global_items = _normalize_items(items) if items is not None else None
         self._register_initial_providers(providers, global_items)
         self._status.configure_items(tuple(self._items.values()))
@@ -117,6 +118,21 @@ class DataRefreshService:
     @property
     def dashboard_visible(self) -> bool:
         return self._dashboard_visible
+
+    def add_listener(self, listener: Callable[[str], None]) -> Callable[[], None]:
+        if not callable(listener):
+            raise TypeError("refresh listener must be callable")
+        self._listeners.append(listener)
+
+        def remove() -> None:
+            try:
+                self._listeners.remove(listener)
+            except ValueError:
+                pass
+
+        return remove
+
+    subscribe = add_listener
 
     def startup(self) -> StartupSnapshot:
         if self._started:
@@ -226,6 +242,11 @@ class DataRefreshService:
     def _finish_group(self, group: str) -> None:
         self._active_groups.discard(group)
         self._status.end_refresh(group)
+        for listener in tuple(self._listeners):
+            try:
+                listener(group)
+            except Exception:  # noqa: BLE001 - observers must not break refresh
+                self._logger.exception("Refresh listener failed for group %s", group)
 
     def _snapshot(self, scheduled_groups: tuple[str, ...]) -> StartupSnapshot:
         cached_payloads = {

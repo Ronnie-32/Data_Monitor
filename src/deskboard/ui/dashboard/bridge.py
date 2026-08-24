@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 
 from PySide6.QtCore import QObject, Signal, Slot
@@ -46,6 +47,23 @@ class ProfileServiceLike(Protocol):
     def save_as(self, name: str, state: ProfileState) -> Profile: ...
 
 
+
+class WeatherPresenterLike(Protocol):
+    def present(
+        self, *, display_mode: str | None = None, max_cities: int | None = None
+    ) -> dict[str, object]: ...
+
+
+class NetworkStatusServiceLike(Protocol):
+    @property
+    def color(self) -> str: ...
+
+
+class RefreshServiceLike(Protocol):
+    def add_listener(
+        self, listener: Callable[[str], None]
+    ) -> Callable[[], None]: ...
+
 class DashboardBridge(QObject):
     shellReady = Signal()
     stateChanged = Signal(dict)
@@ -54,6 +72,8 @@ class DashboardBridge(QObject):
     settingsRequested = Signal()
     todosChanged = Signal(list)
     agendaChanged = Signal(dict)
+    weatherChanged = Signal(dict)
+    networkStatusChanged = Signal(dict)
     timetableChanged = Signal(dict)
     weeklyTimetableRequested = Signal()
     layoutEditRequested = Signal()
@@ -71,6 +91,9 @@ class DashboardBridge(QObject):
         timetable_service: TimetableServiceLike | None = None,
         profile_service: ProfileServiceLike | None = None,
         clock: Clock | None = None,
+        weather_presenter: WeatherPresenterLike | None = None,
+        network_status_service: NetworkStatusServiceLike | None = None,
+        refresh_service: RefreshServiceLike | None = None,
     ) -> None:
         super().__init__(parent)
         self._todo_service = todo_service
@@ -80,6 +103,13 @@ class DashboardBridge(QObject):
         self._clock = clock or SystemClock()
         self._mode = AppMode.INTERACTION
         self._profile_state_override: ProfileState | None = None
+        self._weather_presenter = weather_presenter
+        self._network_status_service = network_status_service
+        self._remove_refresh_listener: Callable[[], None] | None = None
+        if refresh_service is not None:
+            self._remove_refresh_listener = refresh_service.add_listener(
+                self._on_refresh_group_finished
+            )
 
     @Slot()
     def notifyReady(self) -> None:  # noqa: N802
@@ -90,15 +120,7 @@ class DashboardBridge(QObject):
     def requestInitialState(self) -> None:  # noqa: N802
         """Publish one coarse snapshot for the web render-state mirror."""
         self.shellReady.emit()
-        self.stateChanged.emit(
-            present_dashboard_state(
-                todo_service=self._todo_service,
-                agenda_service=self._agenda_service,
-                clock=self._clock,
-                mode=self._mode,
-                profile=self._profile_payload(),
-            )
-        )
+        self.publish_state()
 
     @Slot()
     def openSettings(self) -> None:  # noqa: N802
@@ -209,15 +231,58 @@ class DashboardBridge(QObject):
         )
 
     def publish_state(self) -> None:
-        self.stateChanged.emit(
-            present_dashboard_state(
-                todo_service=self._todo_service,
-                agenda_service=self._agenda_service,
-                clock=self._clock,
-                mode=self._mode,
-                profile=self._profile_payload(),
+        state = present_dashboard_state(
+            todo_service=self._todo_service,
+            agenda_service=self._agenda_service,
+            clock=self._clock,
+            mode=self._mode,
+            profile=self._profile_payload(),
+            weather_presenter=self._weather_presenter,
+            weather_display_mode=self._weather_display_mode(),
+            network_status_service=self._network_status_service,
+        )
+        self.stateChanged.emit(state)
+        self.weatherChanged.emit(dict(state["weather"]))
+        self.networkStatusChanged.emit(dict(state["networkStatus"]))
+
+    def publish_weather(self) -> dict[str, object]:
+        payload = self._weather_payload()
+        self.weatherChanged.emit(payload)
+        return payload
+
+    def publish_network_status(self) -> dict[str, object]:
+        payload = self._network_status_payload()
+        self.networkStatusChanged.emit(payload)
+        return payload
+
+    def _on_refresh_group_finished(self, group: str) -> None:
+        del group
+        self.publish_state()
+
+    def _weather_payload(self) -> dict[str, object]:
+        if self._weather_presenter is None:
+            return {}
+        return dict(
+            self._weather_presenter.present(
+                display_mode=self._weather_display_mode(),
             )
         )
+
+    def _network_status_payload(self) -> dict[str, object]:
+        if self._network_status_service is None:
+            return {"state": "grey"}
+        color = self._network_status_service.color
+        return {"state": color if color in {"grey", "green", "red"} else "grey"}
+
+    def _weather_display_mode(self) -> str | None:
+        profile = self._profile_service.current_profile if self._profile_service else None
+        state = self._profile_state_override or (profile.state if profile else ProfileState())
+        for widget in state.widgets:
+            if widget.widget_key != "weather":
+                continue
+            value = widget.config.get("displayMode", widget.config.get("display_mode"))
+            return value if isinstance(value, str) else None
+        return None
 
     def publish_profile_state(self, state: ProfileState) -> None:
         if not isinstance(state, ProfileState):

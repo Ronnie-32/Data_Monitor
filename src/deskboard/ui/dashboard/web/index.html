@@ -15,6 +15,9 @@
     <header class="shell-bar">
       <h1 class="shell-title">DeskBoard</h1>
       <div id="mode" class="shell-mode">interaction</div>
+      <div class="network-status" aria-label="网络状态">
+        <span id="network-status-dot" class="status-dot" data-state="grey" aria-label="网络状态：检查中"></span>
+      </div>
       <button id="settings" class="settings-button" type="button">打开设置</button>
     </header>
     <div id="layout-toolbar" class="layout-toolbar" hidden>
@@ -57,6 +60,17 @@
                 <ul id="agenda-date-only-list" class="agenda-list"></ul>
               </section>
             </div>
+          </section>
+        </div>
+      </article>
+      <article class="grid-stack-item" gs-x="1" gs-y="6" gs-w="10" gs-h="3" data-widget-key="weather">
+        <div class="grid-stack-item-content">
+          <section class="widget weather-widget" aria-labelledby="weather-title">
+            <header class="widget-header">
+              <h2 id="weather-title" class="widget-title">Weather</h2>
+              <span id="weather-mode" class="weather-mode">单城市详情</span>
+            </header>
+            <div id="weather-cities" class="weather-cities"></div>
           </section>
         </div>
       </article>

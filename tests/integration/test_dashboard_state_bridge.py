@@ -66,6 +66,31 @@ class FakeAgendaService:
         )
 
 
+class FakeWeatherPresenter:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str | None, int | None]] = []
+
+    def present(self, *, display_mode=None, max_cities=None):
+        self.calls.append((display_mode, max_cities))
+        return {
+            "displayMode": display_mode or "single-city detail",
+            "cities": [
+                {
+                    "city": "北京",
+                    "condition": "晴",
+                    "currentTemperature": 26.0,
+                    "high": 31.0,
+                    "low": 22.0,
+                    "wind": "北风 3级",
+                }
+            ],
+        }
+
+
+class FakeNetworkStatusService:
+    color = "green"
+
+
 def test_initial_state_is_requested_once_as_one_coarse_payload():
     todo_service = FakeTodoService()
     agenda_service = FakeAgendaService()
@@ -93,6 +118,23 @@ def test_initial_state_is_requested_once_as_one_coarse_payload():
     assert states[0]["agenda"]["timedItems"][0]["title"] == "按时复习"
     assert todo_service.calls == 1
     assert agenda_service.calls == 1
+
+
+def test_initial_state_uses_weather_presenter_and_global_network_status():
+    weather_presenter = FakeWeatherPresenter()
+    bridge = DashboardBridge(
+        weather_presenter=weather_presenter,
+        network_status_service=FakeNetworkStatusService(),
+        clock=FakeClock(),
+    )
+    states: list[dict[str, object]] = []
+    bridge.stateChanged.connect(states.append)
+
+    bridge.requestInitialState()
+
+    assert states[0]["weather"]["cities"][0]["city"] == "北京"
+    assert states[0]["networkStatus"] == {"state": "green"}
+    assert weather_presenter.calls == [(None, None)]
 
 
 def test_service_side_todo_refresh_emits_python_presented_agenda():
@@ -132,12 +174,18 @@ def test_dashboard_web_assets_use_store_and_view_only_agenda_contract():
     bridge = (web_root / "js/bridge.js").read_text(encoding="utf-8")
     store = (web_root / "js/store.js").read_text(encoding="utf-8")
     agenda = (web_root / "js/widgets/agenda.js").read_text(encoding="utf-8")
+    weather = (web_root / "js/widgets/weather.js").read_text(encoding="utf-8")
 
     assert './js/app.js' in html
     assert "requestInitialState" in app
     assert "stateChanged" in bridge
     assert "createStore" in store
     assert "agendaChanged" in bridge
+    assert "weatherChanged" in bridge
+    assert "networkStatusChanged" in bridge
+    assert "createWeatherWidget" in app
+    assert "status-dot" in html
+    assert "createWeatherWidget" in weather
     assert "requestWeeklyTimetable" in agenda
     assert "requestDeleteTodo" not in agenda
     assert "toggleTodo" not in agenda

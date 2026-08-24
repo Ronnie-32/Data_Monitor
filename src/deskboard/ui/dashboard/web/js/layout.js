@@ -6,6 +6,7 @@ const MIN_CELL_HEIGHT_PX = 48;
 const FALLBACK_LAYOUT = [
   { widgetKey: "todo", visible: true, x: 1, y: 0, w: 5, h: 6 },
   { widgetKey: "today_agenda", visible: true, x: 6, y: 0, w: 5, h: 6 },
+  { widgetKey: "weather", visible: true, x: 1, y: 6, w: 10, h: 3 },
 ];
 
 export function computeMaxRows(containerHeight, cellHeight) {

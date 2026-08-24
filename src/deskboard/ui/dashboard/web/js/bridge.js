@@ -9,6 +9,8 @@ export function subscribeDashboardBridge(bridge, handlers) {
   bridge.profileChanged.connect(handlers.profileChanged);
   bridge.todosChanged.connect(handlers.todosChanged);
   bridge.agendaChanged.connect(handlers.agendaChanged);
+  bridge.weatherChanged.connect(handlers.weatherChanged);
+  bridge.networkStatusChanged.connect(handlers.networkStatusChanged);
   bridge.timetableChanged.connect(handlers.timetableChanged);
   bridge.modeChanged.connect(handlers.modeChanged);
 }

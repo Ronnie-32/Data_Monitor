@@ -26,9 +26,12 @@ from deskboard.presentation.layout_state import (
 from deskboard.ui.dashboard.bridge import (
     AgendaServiceLike,
     DashboardBridge,
+    NetworkStatusServiceLike,
     ProfileServiceLike,
+    RefreshServiceLike,
     TimetableServiceLike,
     TodoServiceLike,
+    WeatherPresenterLike,
 )
 
 WM_NCHITTEST = 0x0084
@@ -169,6 +172,9 @@ class DashboardWindow(QMainWindow):
         timetable_service: TimetableServiceLike | None = None,
         profile_service: ProfileServiceLike | None = None,
         clock: Clock | None = None,
+        weather_presenter: WeatherPresenterLike | None = None,
+        network_status_service: NetworkStatusServiceLike | None = None,
+        refresh_service: RefreshServiceLike | None = None,
     ) -> None:
         super().__init__()
         self._mode = AppMode.INTERACTION
@@ -195,6 +201,9 @@ class DashboardWindow(QMainWindow):
             timetable_service=timetable_service,
             profile_service=profile_service,
             clock=clock,
+            weather_presenter=weather_presenter,
+            network_status_service=network_status_service,
+            refresh_service=refresh_service,
         )
         self.bridge.layoutEditRequested.connect(self.enter_layout_edit)
         self.bridge.layoutSaveRequested.connect(self._save_layout_from_web)

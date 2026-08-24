@@ -20,6 +20,17 @@ class AgendaStateService(Protocol):
         ...
 
 
+
+
+class WeatherPresenterLike(Protocol):
+    def present(
+        self, *, display_mode: str | None = None, max_cities: int | None = None
+    ) -> Mapping[str, object]: ...
+
+
+class NetworkStatusLike(Protocol):
+    @property
+    def color(self) -> str: ...
 class DashboardState(TypedDict):
     app: dict[str, object]
     profile: dict[str, object]
@@ -42,6 +53,10 @@ def present_dashboard_state(
     weather: Mapping[str, object] | None = None,
     finance: Mapping[str, object] | None = None,
     network_status: Mapping[str, object] | None = None,
+    weather_presenter: WeatherPresenterLike | None = None,
+    weather_display_mode: str | None = None,
+    weather_max_cities: int | None = None,
+    network_status_service: NetworkStatusLike | None = None,
 ) -> DashboardState:
     """Collect current service presentations in one coarse state snapshot.
 
@@ -66,15 +81,27 @@ def present_dashboard_state(
         else []
     )
     mode_value = mode.value if isinstance(mode, AppMode) else _mode_value(mode)
+    weather_state = dict(weather or {})
+    if weather_presenter is not None:
+        weather_state = dict(
+            weather_presenter.present(
+                display_mode=weather_display_mode,
+                max_cities=weather_max_cities,
+            )
+        )
+    network_state = dict(network_status or {"state": "grey"})
+    if network_status_service is not None:
+        color = network_status_service.color
+        network_state = {"state": color if color in {"grey", "green", "red"} else "grey"}
     return {
         "app": {"mode": mode_value, "today": today.isoformat()},
         "profile": dict(profile or {}),
-        "widgets": dict(widgets or {"todo": {}, "today_agenda": {}}),
+        "widgets": dict(widgets or {"weather": {}, "todo": {}, "today_agenda": {}}),
         "todos": todos,
         "agenda": agenda,
-        "weather": dict(weather or {}),
+        "weather": weather_state,
         "finance": dict(finance or {}),
-        "networkStatus": dict(network_status or {"state": "grey"}),
+        "networkStatus": network_state,
     }
 
 
