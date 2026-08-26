@@ -138,6 +138,7 @@ $env:PYTHONPATH = (Resolve-Path 'src').Path
 - [数据源审计](docs/data-sources.md)
 - [稳定性验收清单](docs/v1-stability-checklist.md)
 - [发布检查清单](docs/release-checklist.md)
+- [v0.1.0 学习预览版说明](docs/release-notes-v0.1.0.md)
 - [Task 30/31 Windows 人工验收步骤](docs/task30-manual-acceptance.md)、[Task 31 补充步骤](docs/task31-manual-acceptance.md)
 
 ## 维护者说明
