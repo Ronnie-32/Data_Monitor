@@ -29,6 +29,10 @@ conda_dll_names = (
     "libexpat.dll",
     "liblzma.dll",
     "libssl-3-x64.dll",
+    # Match the Anaconda _sqlite3.pyd shipped by this build environment.
+    # Without an explicit entry, PyInstaller can resolve an unrelated
+    # sqlite3.dll from PATH and produce a package that cannot import sqlite3.
+    "sqlite3.dll",
 )
 conda_binaries = [
     (str(conda_bin / name), ".")
