@@ -11,10 +11,10 @@
 | 版本 | `0.1.0`（`pyproject.toml`、`installer/deskboard.iss`） |
 | 发布状态 | `NOT_RELEASED` / `AWAITING_MANUAL_ACCEPTANCE` |
 | Task 28 前置 | 未关闭；见 [稳定性验收清单](v1-stability-checklist.md) |
-| 当前安装器 | `dist/installer/DeskBoard-Setup-0.1.0.exe` 曾成功编译；干净环境安装/启动/卸载仍需正常 Windows 证据 |
-| 外部副作用 | 本任务不 push、不创建 GitHub Release、不上传安装包 |
+| 当前安装器 | `dist/installer/DeskBoard-Setup-0.1.0.exe` 已成功编译；用户已确认下载安装/卸载无问题，Task 28 其余稳定性证据仍按清单单独记录 |
+| 外部副作用 | 源代码仓库可在用户明确授权后 push；本清单不把源码 push 视为正式 Release，也不自动创建 GitHub Release 或上传安装包 |
 
-`NOT_RELEASED` 是硬停止状态。即使文档和安装器存在，也不能把当前仓库称为已完成公开发布版本。
+`NOT_RELEASED` 是正式数据产品发布的硬停止状态。它不阻止在保守免责声明下公开学习向源代码，但不能把当前仓库或安装器称为已完成正式发行版本。
 
 ## 门禁结果
 
@@ -99,7 +99,7 @@ Static scope checks must also confirm:
 - [ ] Verify install, ordinary non-admin operation, Settings, single instance, autostart, data directory and uninstall data retention.
 - [ ] Run final automated verification; distinguish environment failures from product passes.
 - [ ] Review the final Git tree and package contents; remove private/generated files that are not release assets.
-- [ ] Only after every required checkbox is closed, request explicit user authorization for push/GitHub Release.
+- [ ] Only after every required checkbox is closed, create a formal GitHub Release, upload an installer, or claim a cleared data product. A source-only push may proceed only with explicit user authorization and conservative source/data disclaimers.
 
 ## Stop conditions
 
