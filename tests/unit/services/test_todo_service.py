@@ -51,6 +51,18 @@ def test_quick_add_is_content_only_trimmed_and_newest_is_top(service):
         service.add_quick("   ")
 
 
+def test_agenda_quick_add_is_planned_for_today(clock):
+    connection = connect_database(":memory:")
+    migrate(connection)
+    service = TodoService(TodoRepository(connection), clock)
+    created = service.add_today("今天的日程")
+
+    assert created.planned_date == clock.today()
+    assert created.planned_start_time is None
+    assert created.planned_end_time is None
+    assert created.id in {item.id for item in service.get_for_agenda_date(clock.today())}
+
+
 @pytest.mark.parametrize(
     ("update", "expected_date", "expected_time"),
     [

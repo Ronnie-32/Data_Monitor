@@ -1,3 +1,5 @@
+import { normalizeLanguage, translate } from "./i18n.js";
+
 const WEEKDAY_COUNT = 7;
 
 function textNode(tag, className, value) {
@@ -9,6 +11,7 @@ function textNode(tag, className, value) {
 
 function parseClock(value) {
   if (typeof value !== "string") return null;
+  if (value === "24:00" || value === "24:00:00") return 24 * 60;
   const match = /^(\d{2}):(\d{2})$/.exec(value);
   if (!match) return null;
   const hours = Number(match[1]);
@@ -66,7 +69,7 @@ function eventGeometry(item, dates, lower, upper) {
   };
 }
 
-function renderEvent(item, geometry) {
+function renderEvent(item, geometry, language) {
   const node = document.createElement("article");
   node.className = "timetable-event";
   node.classList.add(item.type === "course" ? "is-course" : "is-todo");
@@ -84,16 +87,21 @@ function renderEvent(item, geometry) {
   const timeText = item.end ? `${item.start}–${item.end}` : (item.start || "");
   if (timeText) meta.append(textNode("span", "timetable-event-time", timeText));
   if (item.classroom) meta.append(textNode("span", "timetable-event-classroom", item.classroom));
-  if (item.conflict) meta.append(textNode("span", "timetable-event-conflict", "冲突"));
+  if (item.conflict) {
+    meta.append(textNode("span", "timetable-event-conflict", translate("timetable.conflict", language)));
+  }
   if (meta.childElementCount) node.append(meta);
-  node.setAttribute("aria-label", `${item.title || "事项"} ${timeText}`.trim());
+  node.setAttribute(
+    "aria-label",
+    `${item.title || translate("timetable.item", language)} ${timeText}`.trim(),
+  );
   return node;
 }
 
-function renderReferenceLines(axis, days, periods, lower, upper) {
+function renderReferenceLines(axisElement, days, axisModel, periods, lower, upper) {
   const axisTrack = document.createElement("div");
   axisTrack.className = "timetable-axis-track";
-  axis.replaceChildren(axisTrack);
+  axisElement.replaceChildren(axisTrack);
   days.replaceChildren();
 
   const dayTracks = [];
@@ -107,15 +115,25 @@ function renderReferenceLines(axis, days, periods, lower, upper) {
     dayTracks.push(track);
   }
 
-  (Array.isArray(periods) ? periods : []).forEach((period) => {
-    const start = parseClock(period.start);
+  const guides = Array.isArray(axisModel?.guides)
+    ? axisModel.guides
+    : (Array.isArray(periods) ? periods : []).map((period) => ({
+      index: period.period,
+      start: period.start,
+      end: period.end,
+      label: String(period.period),
+    }));
+  guides.forEach((guide) => {
+    const start = parseClock(guide.start);
     if (start === null || start < lower || start > upper) return;
 
     const top = `${percentage(start, lower, upper)}%`;
     const axisMarker = document.createElement("div");
     axisMarker.className = "timetable-axis-marker";
     axisMarker.style.top = top;
-    axisMarker.append(textNode("span", "timetable-axis-label", String(period.period)));
+    if (guide.label) {
+      axisMarker.append(textNode("span", "timetable-axis-label", String(guide.label)));
+    }
     axisTrack.append(axisMarker);
 
     dayTracks.forEach((track) => {
@@ -148,6 +166,13 @@ export function createTimetableOverlay() {
   const days = document.getElementById("timetable-days");
   let mode = "interaction";
   let currentModel = null;
+  let language = "zh_CN";
+
+  function applyLanguage() {
+    document.getElementById("timetable-title").textContent = translate("timetable.title", language);
+    closeButton.textContent = translate("timetable.close", language);
+    axis.setAttribute("aria-label", translate("timetable.axis", language));
+  }
 
   function close() {
     overlay.hidden = true;
@@ -164,8 +189,9 @@ export function createTimetableOverlay() {
     currentModel = model || null;
     if (!currentModel) return;
     weekLabel.textContent = currentModel.weekLabel || "";
-    const lower = parseClock(currentModel.visibleStart);
-    const upper = parseClock(currentModel.visibleEnd);
+    const axisModel = currentModel.axis || {};
+    const lower = parseClock(currentModel.visibleStart ?? axisModel.visibleStart);
+    const upper = parseClock(currentModel.visibleEnd ?? axisModel.visibleEnd);
     const dates = new Map();
     const weekStart = validIsoDate(currentModel.weekStart);
     if (weekStart) {
@@ -183,7 +209,7 @@ export function createTimetableOverlay() {
     ready.hidden = needsConfiguration;
     empty.hidden = !needsConfiguration;
     if (needsConfiguration) {
-      empty.textContent = "尚未配置 1–8 节课时，请先到设置中完成配置。";
+      empty.textContent = translate("timetable.empty", language);
       axis.replaceChildren();
       days.replaceChildren();
       open();
@@ -194,6 +220,7 @@ export function createTimetableOverlay() {
     const dayTracks = renderReferenceLines(
       axis,
       days,
+      axisModel,
       currentModel.periods,
       lower,
       upper,
@@ -201,7 +228,7 @@ export function createTimetableOverlay() {
     (Array.isArray(currentModel.events) ? currentModel.events : []).forEach((item) => {
       const geometry = eventGeometry(item, dates, lower, upper);
       if (!geometry || !dayTracks[geometry.dayIndex]) return;
-      dayTracks[geometry.dayIndex].append(renderEvent(item, geometry));
+      dayTracks[geometry.dayIndex].append(renderEvent(item, geometry, language));
     });
     open();
   }
@@ -213,6 +240,19 @@ export function createTimetableOverlay() {
     if (mode !== "interaction") close();
   }
 
+  function setLanguage(nextLanguage) {
+    language = normalizeLanguage(nextLanguage);
+    applyLanguage();
+    if (currentModel) render(currentModel);
+  }
+
+  applyLanguage();
   close();
-  return { render, setMode, close, get currentModel() { return currentModel; } };
+  return {
+    render,
+    setMode,
+    setLanguage,
+    close,
+    get currentModel() { return currentModel; },
+  };
 }

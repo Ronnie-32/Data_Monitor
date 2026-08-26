@@ -24,8 +24,27 @@ PROFILE_THEME_KEYS = (
     "mint_breeze",
     "almond_sand",
     "lavender_cloud",
+    "ocean_night",
+    "graphite_night",
+    "rose_dusk",
+    "high_contrast",
+    "terra_signal",
+    "endfield_industrial",
+    "starrail_astral",
+    "wuthering_tide",
 )
-PROFILE_GRID_COLUMNS = 12
+PROFILE_FONT_KEYS = (
+    "system_ui",
+    "yahei",
+    "noto_sans",
+    "source_han_sans",
+    "source_han_serif",
+)
+DEFAULT_PROFILE_THEME_KEY = "mist_blue"
+DEFAULT_PROFILE_FONT_KEY = "system_ui"
+PROFILE_GRID_COLUMNS = 48
+LEGACY_PROFILE_GRID_COLUMNS = 12
+PROFILE_GRID_SCALE = PROFILE_GRID_COLUMNS // LEGACY_PROFILE_GRID_COLUMNS
 
 DEFAULT_PROFILE_NAME = "Default"
 MAX_USER_PROFILES = 8
@@ -50,10 +69,12 @@ class ProfileWidgetState:
             raise TypeError("Profile widget visible must be a bool")
         _validate_int(self.x, "Profile widget x", minimum=0)
         _validate_int(self.y, "Profile widget y", minimum=0)
-        _validate_int(self.w, "Profile widget w", minimum=1, maximum=12)
+        _validate_int(self.w, "Profile widget w", minimum=1, maximum=PROFILE_GRID_COLUMNS)
         _validate_int(self.h, "Profile widget h", minimum=1)
         if self.x + self.w > PROFILE_GRID_COLUMNS:
-            raise ValueError("Profile widget geometry must fit within the 12-column grid")
+            raise ValueError(
+                "Profile widget geometry must fit within the 48-column grid"
+            )
         if not isinstance(self.config, Mapping):
             raise TypeError("Profile widget config must be a mapping")
         config = dict(self.config)
@@ -78,7 +99,8 @@ class ProfileState:
     window_y: int | None = None
     window_width: int | None = None
     window_height: int | None = None
-    theme_key: str = "mist_blue"
+    theme_key: str = DEFAULT_PROFILE_THEME_KEY
+    font_key: str = DEFAULT_PROFILE_FONT_KEY
     panel_opacity: float = 1.0
     widgets: tuple[ProfileWidgetState, ...] = ()
 
@@ -89,6 +111,8 @@ class ProfileState:
         _validate_optional_int(self.window_height, "Profile window height", minimum=1)
         if self.theme_key not in PROFILE_THEME_KEYS:
             raise ValueError(f"Unsupported Profile theme: {self.theme_key}")
+        if self.font_key not in PROFILE_FONT_KEYS:
+            raise ValueError(f"Unsupported Profile font: {self.font_key}")
         if isinstance(self.panel_opacity, bool) or not isinstance(self.panel_opacity, Real):
             raise TypeError("Profile panel opacity must be a number")
         if not 0 <= float(self.panel_opacity) <= 1:

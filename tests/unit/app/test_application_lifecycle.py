@@ -1,5 +1,9 @@
 from deskboard.app.application import DeskBoardApplication
 from deskboard.app.modes import AppMode
+from deskboard.app.startup import (
+    FIRST_RUN_COMPLETED_SETTING,
+    LAST_MODE_SETTING,
+)
 
 
 class FakeSignal:
@@ -131,7 +135,30 @@ class FakeInstanceGuard:
         self.close_calls += 1
 
 
-def make_application():
+class FakeStartupSettings:
+    def __init__(self, values=None) -> None:
+        self.values = dict(values or {})
+
+    def get(self, key: str, default=None):
+        return self.values.get(key, default)
+
+    def set(self, key: str, value: str) -> None:
+        self.values[key] = value
+
+
+class FakeDayRollover:
+    def __init__(self) -> None:
+        self.start_calls = 0
+        self.stop_calls = 0
+
+    def start(self) -> None:
+        self.start_calls += 1
+
+    def stop(self) -> None:
+        self.stop_calls += 1
+
+
+def make_application(*, startup_settings=None, day_rollover_scheduler=None):
     qt_app = FakeQtApplication()
     dashboard = FakeDashboard()
     settings_instances: list[FakeSettings] = []
@@ -159,6 +186,8 @@ def make_application():
         settings_factory=settings_factory,
         tray_factory=tray_factory,
         instance_guard=instance_guard,
+        startup_settings=startup_settings,
+        day_rollover_scheduler=day_rollover_scheduler,
     )
     return application, qt_app, dashboard, settings_instances, tray_instances
 
@@ -174,6 +203,81 @@ def test_start_shows_one_dashboard_in_interaction_mode_and_opens_settings():
     assert len(settings_instances) == 1
     assert settings_instances[0].visible is True
     assert tray_instances[0].show_calls == 1
+
+
+def test_start_restores_persisted_daily_mode_and_always_shows_dashboard():
+    settings = FakeStartupSettings(
+        {
+            FIRST_RUN_COMPLETED_SETTING: "true",
+            LAST_MODE_SETTING: AppMode.LOCKED.value,
+        }
+    )
+    application, _, dashboard, settings_instances, _ = make_application(
+        startup_settings=settings
+    )
+
+    application.start()
+
+    assert dashboard.visible is True
+    assert dashboard.modes == [AppMode.LOCKED]
+    assert settings_instances == []
+
+
+def test_first_run_opens_settings_automatically_and_subsequent_run_does_not():
+    settings = FakeStartupSettings()
+    application, _, _, first_settings, _ = make_application(startup_settings=settings)
+
+    application.start()
+
+    assert len(first_settings) == 1
+    assert first_settings[0].visible is True
+    assert settings.values[FIRST_RUN_COMPLETED_SETTING] == "true"
+
+    later_application, _, _, later_settings, _ = make_application(
+        startup_settings=settings
+    )
+    later_application.start()
+
+    assert later_settings == []
+
+
+def test_layout_edit_is_never_restored_as_a_startup_mode():
+    settings = FakeStartupSettings(
+        {
+            FIRST_RUN_COMPLETED_SETTING: "true",
+            LAST_MODE_SETTING: AppMode.LAYOUT_EDIT.value,
+        }
+    )
+    application, _, dashboard, _, _ = make_application(startup_settings=settings)
+
+    application.start()
+
+    assert dashboard.modes == [AppMode.INTERACTION]
+
+
+def test_daily_mode_changes_are_persisted_for_the_next_launch():
+    settings = FakeStartupSettings({FIRST_RUN_COMPLETED_SETTING: "true"})
+    application, _, _, _, _ = make_application(startup_settings=settings)
+
+    application.start()
+    application.set_mode(AppMode.LOCKED)
+
+    assert settings.values[LAST_MODE_SETTING] == AppMode.LOCKED.value
+
+
+def test_day_rollover_scheduler_starts_with_application_and_stops_on_exit():
+    scheduler = FakeDayRollover()
+    application, qt_app, _, _, _ = make_application(
+        day_rollover_scheduler=scheduler
+    )
+
+    application.start()
+    assert scheduler.start_calls == 1
+
+    application.exit()
+
+    assert scheduler.stop_calls == 1
+    assert qt_app.quit_calls == 1
 
 
 def test_mode_changes_are_applied_to_dashboard_and_settings_shell():

@@ -86,7 +86,11 @@ def test_dashboard_state_is_one_python_owned_coarse_snapshot():
         "finance",
         "networkStatus",
     }
-    assert state["app"] == {"mode": "interaction", "today": "2026-08-21"}
+    assert state["app"] == {
+        "mode": "interaction",
+        "today": "2026-08-21",
+        "language": "zh_CN",
+    }
     assert state["todos"][0]["content"] == "复习"
     assert state["agenda"]["timedItems"][0] == {
         "id": 7,

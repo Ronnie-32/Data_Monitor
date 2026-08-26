@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import sqlite3
 import threading
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+
+from PySide6.QtCore import QCoreApplication, QTimer
 
 from deskboard.database.connection import connect_database
 from deskboard.database.schema import migrate
@@ -266,6 +269,72 @@ def test_two_items_in_one_group_use_one_underlying_worker(tmp_path):
 
     assert service.refresh_all() == ("finance",)
     assert len(worker.jobs) == 1
+
+
+def test_replace_provider_reconciles_runtime_items_for_a_dynamic_city_group():
+    provider = FakeProvider(
+        "weather",
+        ProviderResult.success("suzhou", {"city": "苏州"}),
+    )
+    connection = sqlite3.connect(":memory:")
+    migrate(connection)
+    repository = NetworkRepository(connection)
+    clock = FakeClock(datetime(2026, 8, 21, 9, 30))
+    worker = ControlledWorker()
+    status = StatusService(repository, items=[NetworkItem("beijing", "weather")])
+    service = DataRefreshService(
+        repository,
+        clock,
+        providers=[provider],
+        items=[NetworkItem("beijing", "weather")],
+        worker_executor=worker,
+        status_service=status,
+    )
+
+    service.replace_provider(
+        provider,
+        items=[NetworkItem("suzhou", "weather")],
+    )
+
+    assert [item.key for item in service.network_items] == ["suzhou"]
+    assert service.refresh_group("weather") is True
+    worker.resolve_next()
+    assert repository.get_cache("suzhou").payload == {"city": "苏州"}
+    assert repository.get_cache("beijing") is None
+    connection.close()
+
+
+def test_qt_refresh_completes_all_provider_groups_and_clears_global_status():
+    app = QCoreApplication.instance() or QCoreApplication([])
+    connection = sqlite3.connect(":memory:")
+    migrate(connection)
+    repository = NetworkRepository(connection)
+    clock = FakeClock(datetime(2026, 8, 21, 9, 30))
+    items = [
+        NetworkItem("weather", "weather"),
+        NetworkItem("gold", "gold"),
+    ]
+    status = StatusService(repository, items=items)
+    service = DataRefreshService(
+        repository,
+        clock,
+        providers=[
+            FakeProvider("weather", ProviderResult.success("weather", {"ok": True})),
+            FakeProvider("gold", ProviderResult.success("gold", {"ok": True})),
+        ],
+        items=items,
+        status_service=status,
+        worker_executor=QtThreadPoolExecutor(),
+    )
+
+    assert service.refresh_all() == ("gold", "weather")
+    assert status.color == "grey"
+    QTimer.singleShot(1_000, app.quit)
+    app.exec()
+
+    assert service.active_groups == ()
+    assert status.color == "green"
+    connection.close()
 
 
 def test_qt_worker_runs_job_off_the_calling_thread():

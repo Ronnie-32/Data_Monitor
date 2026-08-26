@@ -4,5 +4,19 @@ dist/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest_*/
+.pytest-*/
 .ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
 
+# Local runtime and diagnostic files
+*.log
+
+# Local handoff/generated README exports; source documentation is README.md
+TEMP_HANDOFF.md
+README.html
+README_files/

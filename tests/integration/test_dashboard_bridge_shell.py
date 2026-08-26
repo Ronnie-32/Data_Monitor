@@ -20,6 +20,20 @@ def test_bridge_reports_web_readiness_and_publishes_mode():
     assert mode_events == ["locked"]
 
 
+def test_window_drag_request_is_exposed_only_for_layout_edit():
+    bridge = DashboardBridge()
+    requests: list[tuple[int, int]] = []
+    bridge.windowDragRequested.connect(lambda x, y: requests.append((x, y)))
+
+    bridge.beginWindowDrag(10, 20)
+    bridge.publish_mode(AppMode.INTERACTION)
+    bridge.beginWindowDrag(30, 40)
+    bridge.publish_mode(AppMode.LAYOUT_EDIT)
+    bridge.beginWindowDrag(50, 60)
+
+    assert requests == [(50, 60)]
+
+
 def test_dashboard_declares_exactly_one_webengine_view_and_local_page():
     source = Path(DashboardWindow.__module__.replace(".", "/") + ".py")
     source = Path("src") / source
@@ -30,11 +44,13 @@ def test_dashboard_declares_exactly_one_webengine_view_and_local_page():
     )
 
     assert text.count("QWebEngineView(") == 1
-    assert "setMinimumSize(" not in text
+    assert "setMinimumSize(360, 220)" in text
     assert "qrc:///qtwebchannel/qwebchannel.js" in html
     assert './js/app.js' in html
     assert "requestInitialState" in app
-    assert 'id="edit-dragbar"' in html
+    assert 'id="shell-drag-handle"' in html
+    assert 'data-drag-region="true"' in html
+    assert 'id="edit-dragbar"' not in html
     assert "beginWindowMove" not in html
     assert "beginWindowResize" not in html
     assert "http://" not in html

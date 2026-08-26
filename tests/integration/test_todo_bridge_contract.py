@@ -44,6 +44,12 @@ class FakeTodoService:
         self.items.insert(0, created)
         return created
 
+    def add_today(self, content: str) -> Todo:
+        self.calls.append(("add_today", content))
+        created = todo(3)
+        self.items.insert(0, created)
+        return created
+
     def set_completed(self, todo_id: int, completed: bool) -> Todo:
         self.calls.append(("complete", todo_id, completed))
         current = next(item for item in self.items if item.id == todo_id)
@@ -87,6 +93,19 @@ def test_todo_commands_delegate_once_and_emit_refreshed_presented_state():
     }
 
 
+def test_today_agenda_add_command_delegates_and_refreshes_todos():
+    service = FakeTodoService()
+    bridge = DashboardBridge(todo_service=service, clock=FakeClock())
+    events: list[list[dict[str, object]]] = []
+    bridge.todosChanged.connect(events.append)
+
+    bridge.addTodayTodo("今天要做")
+
+    assert service.calls == [("add_today", "今天要做")]
+    assert len(events) == 1
+    assert events[-1][0]["id"] == 3
+
+
 def test_todo_commands_are_gated_to_interaction_mode():
     service = FakeTodoService()
     bridge = DashboardBridge(todo_service=service, clock=FakeClock())
@@ -94,6 +113,7 @@ def test_todo_commands_are_gated_to_interaction_mode():
     for mode in (AppMode.LOCKED, AppMode.LAYOUT_EDIT):
         bridge.publish_mode(mode)
         bridge.addQuickTodo("blocked")
+        bridge.addTodayTodo("blocked agenda")
         bridge.toggleTodo(1)
         bridge.reorderTodos([2, 1])
 
@@ -137,6 +157,7 @@ def test_dashboard_todo_assets_use_bridge_commands_and_mode_gating():
     html = (web_root / "index.html").read_text(encoding="utf-8")
     app = (web_root / "js/app.js").read_text(encoding="utf-8")
     javascript = (web_root / "js/widgets/todo.js").read_text(encoding="utf-8")
+    i18n = (web_root / "js/i18n.js").read_text(encoding="utf-8")
     css = (web_root / "css/widgets.css").read_text(encoding="utf-8")
 
     assert 'type="module"' in html
@@ -152,12 +173,32 @@ def test_dashboard_todo_assets_use_bridge_commands_and_mode_gating():
     ):
         assert command in javascript
     assert 'dataset.mode === "interaction"' in javascript
-    assert "Edit details" in html
-    assert "Mark incomplete" in html
-    assert "Delete" in html
+    assert "编辑详情" in html
+    assert "标记未完成" in html
+    assert ">删除</button>" in html
+    assert '"menu.edit": "Edit details"' in i18n
+    assert '"menu.incomplete": "Mark incomplete"' in i18n
+    assert '"menu.delete": "Delete"' in i18n
     assert "overflow-y: auto" in css
     assert ".todo-item.is-completed" in css
     assert "text-decoration: line-through" not in css
+
+
+def test_today_agenda_assets_use_one_list_inline_time_and_quick_add():
+    web_root = Path("src/deskboard/ui/dashboard/web")
+    html = (web_root / "index.html").read_text(encoding="utf-8")
+    agenda = (web_root / "js/widgets/agenda.js").read_text(encoding="utf-8")
+    css = (web_root / "css/widgets.css").read_text(encoding="utf-8")
+
+    assert 'id="agenda-add"' in html
+    assert 'id="agenda-add-form"' in html
+    assert 'id="agenda-list"' in html
+    assert 'id="agenda-timed-list"' not in html
+    assert 'id="agenda-date-only-list"' not in html
+    assert "addTodayTodo" in agenda
+    assert "agenda-inline-time" in agenda
+    assert "timedItems" in agenda and "dateOnlyItems" in agenda
+    assert ".agenda-item {\n  display: block;" in css
 
 
 def test_production_window_and_entrypoint_wire_todo_service_into_bridge():

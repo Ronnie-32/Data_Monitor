@@ -6,53 +6,181 @@
 }
 
 .layout-toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  position: static;
+  z-index: 40;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-rows: 36px auto;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  margin: -6px 0 10px;
-  padding: 7px 9px;
-  border: 1px solid rgba(37, 99, 235, .16);
+  gap: 5px 10px;
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid rgb(var(--accent-rgb) / .24);
   border-radius: 9px;
-  background: rgba(239, 246, 255, .85);
-  color: #1e3a8a;
+  background: rgb(var(--accent-rgb) / .10);
+  color: var(--accent-strong);
   font-size: 12px;
+  cursor: move;
 }
 
 .layout-toolbar[hidden] { display: none; }
-.layout-toolbar-title { font-weight: 700; }
-.layout-toolbar button { padding: 5px 9px; }
-.layout-toolbar button:first-of-type { background: #dbeafe; color: #1e3a8a; }
-.layout-visibility-controls { display: flex; flex-wrap: wrap; gap: 7px; margin-left: auto; }
-.layout-visibility-label { display: inline-flex; align-items: center; gap: 3px; }
+.layout-toolbar-title {
+  grid-column: 1;
+  grid-row: 1;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: move;
+}
+.layout-toolbar-hint {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: move;
+}
+.layout-toolbar-actions {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+.layout-toolbar button {
+  flex: 0 0 auto;
+  min-width: 52px;
+  padding: 6px 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.layout-toolbar button:first-of-type { background: rgb(var(--accent-rgb) / .16); color: var(--accent-strong); }
+.layout-visibility-controls {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 9px;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  padding-top: 2px;
+}
+.layout-visibility-label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+body[data-mode="layout_edit"] .shell-title,
+body[data-mode="layout_edit"] .shell-mode,
+body[data-mode="layout_edit"] .shell-drag-handle,
+body[data-mode="layout_edit"] .network-status,
+body[data-mode="layout_edit"] .settings-button { display: none; }
+body[data-mode="layout_edit"] .shell-bar { gap: 0; }
+
+@media (max-width: 720px) {
+  .layout-toolbar-hint { display: none; }
+  .layout-toolbar { grid-template-columns: minmax(0, 1fr) max-content; gap: 4px 8px; }
+  .layout-toolbar-title { grid-column: 1; }
+  .layout-toolbar-actions { grid-column: 2; }
+}
+
+@media (max-width: 420px) {
+  .layout-toolbar {
+    grid-template-rows: 34px auto;
+    gap: 3px 5px;
+    padding: 4px 5px;
+  }
+  .layout-toolbar button { min-width: 48px; padding: 5px 7px; font-size: 11px; }
+}
+
+@media (max-width: 340px) {
+  .layout-toolbar-title { display: none; }
+}
+
+.widgets-grid-viewport {
+  position: relative;
+  flex: 0 1 auto;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 
 .widgets-grid.grid-stack {
   display: block;
   position: relative;
-  flex: 1 1 auto;
   width: 100%;
+  min-width: 0;
   min-height: 0;
-  height: 100%;
-  max-height: 100%;
-  overflow: hidden;
-  --gs-item-margin-top: 0px;
-  --gs-item-margin-bottom: 0px;
-  --gs-item-margin-left: 4px;
-  --gs-item-margin-right: 4px;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+  --gs-item-margin-top: 2px;
+  --gs-item-margin-bottom: 2px;
+  --gs-item-margin-left: 2px;
+  --gs-item-margin-right: 2px;
 }
 
-.grid-stack-item-content {
+.grid-stack > .grid-stack-item {
+  min-height: 0;
+}
+
+.grid-stack > .grid-stack-item > .grid-stack-item-content {
   overflow: hidden;
+  min-height: 0;
 }
 
 .grid-stack-item.layout-item-hidden {
+  display: none !important;
   visibility: hidden;
 }
 
 body[data-mode="layout_edit"] .grid-stack-item-content {
-  outline: 1px dashed rgba(37, 99, 235, .22);
+  outline: 1px dashed rgb(var(--accent-rgb) / .32);
 }
 
 body[data-mode="layout_edit"] .grid-stack-item:hover .grid-stack-item-content {
-  outline-color: rgba(37, 99, 235, .62);
+  outline-color: rgb(var(--accent-rgb) / .72);
+}
+
+body[data-mode="layout_edit"] .grid-stack-item-content { cursor: grab; }
+body[data-mode="layout_edit"] .grid-stack-item.ui-draggable-dragging .grid-stack-item-content {
+  cursor: grabbing;
+}
+body[data-mode="layout_edit"] .widgets-grid.grid-stack {
+  background-image:
+    linear-gradient(to right, rgb(var(--accent-rgb) / .10) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(var(--accent-rgb) / .08) 1px, transparent 1px);
+    background-size: calc(100% / 48) 100%, 100% var(--gs-cell-height);
+}
+body[data-mode="layout_edit"] .grid-stack-placeholder > .placeholder-content {
+  border: 2px dashed rgb(var(--accent-rgb) / .72);
+  border-radius: var(--widget-radius);
+  background: rgb(var(--accent-rgb) / .12);
+}
+
+/* Make the resize affordance discoverable and keep it above widget content. */
+body[data-mode="layout_edit"] .grid-stack-item > .ui-resizable-handle {
+  z-index: 30;
+  display: block !important;
+  border-radius: 3px;
+  background-color: rgb(var(--accent-rgb) / .18);
 }

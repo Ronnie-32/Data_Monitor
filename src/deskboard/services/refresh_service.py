@@ -74,6 +74,36 @@ class DataRefreshService:
         return self._status
 
     @property
+    def network_items(self) -> tuple[NetworkItem, ...]:
+        """Return the globally configured items for Settings diagnostics."""
+
+        return tuple(self._items.values())
+
+    @property
+    def groups(self) -> tuple[str, ...]:
+        """Return provider groups that can be refreshed from Settings."""
+
+        return tuple(sorted(self._registrations))
+
+    def data_status_rows(
+        self,
+        *,
+        source_metadata=None,
+        display_names=None,
+    ):
+        """Build Data Status rows through the presentation boundary."""
+
+        from deskboard.presentation.data_status_presenter import present_data_status
+
+        return present_data_status(
+            self.network_items,
+            self._repository,
+            source_metadata=source_metadata,
+            display_names=display_names,
+            active_groups=self.active_groups,
+        )
+
+    @property
     def refresh_interval(self) -> timedelta:
         return REFRESH_INTERVAL
 
@@ -105,6 +135,36 @@ class DataRefreshService:
             NetworkItem(item.key, group, self._effective_enabled(item)) for item in selected
         )
         self._registrations[group] = _ProviderRegistration(group, provider, normalized)
+        self._items.update({item.key: item for item in normalized})
+        self._status.configure_items(tuple(self._items.values()))
+
+    def replace_provider(
+        self,
+        provider: Provider,
+        *,
+        items: Iterable[NetworkItem | str] | None = None,
+    ) -> None:
+        """Reconcile one provider group's runtime item catalog.
+
+        This is used for global catalogs such as Weather cities, which can be
+        edited while DeskBoard is running.  Stale items are removed from the
+        refresh/status view so a newly added item becomes part of the same
+        provider group immediately.
+        """
+
+        group = _provider_group(provider)
+        selected = (
+            _normalize_items(items)
+            if items is not None
+            else _normalize_items(getattr(provider, "items", ()))
+        )
+        normalized = tuple(
+            NetworkItem(item.key, group, self._effective_enabled(item)) for item in selected
+        )
+        self._registrations[group] = _ProviderRegistration(group, provider, normalized)
+        self._items = {
+            key: item for key, item in self._items.items() if str(item.group) != group
+        }
         self._items.update({item.key: item for item in normalized})
         self._status.configure_items(tuple(self._items.values()))
 

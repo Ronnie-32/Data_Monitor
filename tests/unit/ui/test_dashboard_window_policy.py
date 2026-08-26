@@ -3,6 +3,7 @@ import ctypes
 import pytest
 
 from deskboard.app.modes import AppMode
+from deskboard.models.profile import ProfileState
 from deskboard.ui.dashboard import window as window_module
 from deskboard.ui.dashboard.window import DashboardWindow, native_hit_test
 
@@ -74,7 +75,7 @@ def test_hit_test_uses_physical_screen_coordinates_with_nonzero_origin():
     assert native_hit_test(AppMode.LAYOUT_EDIT, 3899, -299, physical_rect) == 14
     assert native_hit_test(AppMode.LAYOUT_EDIT, 2401, 699, physical_rect) == 16
     assert native_hit_test(AppMode.LAYOUT_EDIT, 3899, 699, physical_rect) == 17
-    assert native_hit_test(AppMode.LAYOUT_EDIT, 3150, -280, physical_rect) == 2
+    assert native_hit_test(AppMode.LAYOUT_EDIT, 3150, -255, physical_rect) == 2
     assert native_hit_test(AppMode.LAYOUT_EDIT, 3150, 200, physical_rect) is None
 
 
@@ -83,6 +84,59 @@ def test_hit_test_supports_negative_physical_window_origin():
 
     assert native_hit_test(AppMode.LAYOUT_EDIT, -1599, 100, physical_rect) == 10
     assert native_hit_test(AppMode.LAYOUT_EDIT, -401, 100, physical_rect) == 11
+
+
+def test_layout_edit_native_resize_gutter_does_not_cover_widget_resize_handle():
+    source = open("src/deskboard/ui/dashboard/window.py", encoding="utf-8").read()
+
+    assert "RESIZE_BORDER = 4" in source
+    assert native_hit_test(AppMode.LAYOUT_EDIT, 95, 40, (0, 0, 100, 80)) is None
+    assert native_hit_test(AppMode.LAYOUT_EDIT, 96, 40, (0, 0, 100, 80)) == 11
+
+
+def test_layout_edit_drag_hit_test_is_limited_to_blank_title_middle():
+    assert native_hit_test(AppMode.LAYOUT_EDIT, 50, 20, (0, 0, 100, 80)) == 2
+    assert native_hit_test(AppMode.LAYOUT_EDIT, 20, 20, (0, 0, 100, 80)) is None
+    assert native_hit_test(AppMode.LAYOUT_EDIT, 90, 20, (0, 0, 100, 80)) is None
+
+
+def test_layout_edit_window_drag_delegates_screen_point_only_in_edit_mode(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        window_module,
+        "begin_native_window_drag",
+        lambda hwnd, screen_x, screen_y: calls.append((hwnd, screen_x, screen_y)),
+    )
+
+    fake_window = type(
+        "FakeWindow",
+        (),
+        {"_mode": AppMode.INTERACTION, "winId": lambda self: 123},
+    )()
+    DashboardWindow._begin_window_drag(fake_window, 10, 20)
+
+    fake_window._mode = AppMode.LAYOUT_EDIT
+    DashboardWindow._begin_window_drag(fake_window, 30, 40)
+
+    assert calls == [(123, 30, 40)]
+
+
+def test_profile_preview_updates_dashboard_bridge_without_reapplying_geometry():
+    calls = []
+
+    class FakeBridge:
+        def set_profile_state(self, state):
+            calls.append(("set", state))
+
+        def publish_profile_state(self, state):
+            calls.append(("publish", state))
+
+    fake_window = type("FakeDashboard", (), {"bridge": FakeBridge()})()
+    state = ProfileState(theme_key="ocean_night", font_key="yahei")
+
+    DashboardWindow.preview_profile_state(fake_window, state)
+
+    assert calls == [("set", state), ("publish", state)]
 
 
 def test_null_shell_hwnd_is_logged_and_owner_is_left_unchanged(monkeypatch):

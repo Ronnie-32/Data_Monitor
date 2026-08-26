@@ -191,3 +191,19 @@ def test_dashboard_web_assets_use_store_and_view_only_agenda_contract():
     assert "toggleTodo" not in agenda
     assert "get_occurrences" not in app
     assert "planned" not in app
+
+
+def test_today_agenda_uses_chinese_dashboard_label_and_todo_typography():
+    web_root = Path("src/deskboard/ui/dashboard/web")
+    html = (web_root / "index.html").read_text(encoding="utf-8")
+    css = (web_root / "css/widgets.css").read_text(encoding="utf-8")
+    layout = (web_root / "js/layout.js").read_text(encoding="utf-8")
+
+    assert "今日日程" in html
+    assert "今日事项" in html
+    assert "Today Agenda" not in html
+    assert "Today Items" not in html
+    assert 'today_agenda: "今日日程"' in layout
+    assert ".todo-content,\n.agenda-content" in css
+    assert ".todo-meta,\n.agenda-meta" in css
+    assert ".todo-empty,\n.agenda-empty" in css

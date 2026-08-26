@@ -25,7 +25,7 @@
 | REQ-PROD-01 | Windows 10/11 64-bit only; Python 3.12.x development baseline. | Spec §1–2, §25 | 0,2,27 | MAN-WIN-01; MAN-PACK-01 | Manual + static review | Platform gate. |
 | REQ-PROD-02 | V1 operates on the primary display only. | Spec §2.1 | 26 | MAN-WIN-12 | Manual | No multi-monitor behavior required. |
 | REQ-PROD-03 | DeskBoard is local-first, account-free, and personal-use stability precedes public release. | Spec §1, §29 | 1,28,29 | MAN-REL-01; MAN-STAB-01 | Manual + review | No account/login flow. |
-| REQ-SCOPE-01 | V1 must not add WorkerW, multi-monitor, edge auto-hide, dark theme, plugins, arbitrary securities, finance charts/history/news, cloud/sync, reminders, imports/exports, auto-backup, auto-update, portable build, localhost server, CDN assets, API-key flow, proxy configuration, or AKShare. | Spec §2.2 | 0–29 | REV-SCOPE-01 | Static/code review | Scope guard; no runtime test can prove all absences. |
+| REQ-SCOPE-01 | V1 must not add WorkerW, multi-monitor, edge auto-hide, plugins, arbitrary securities, finance charts/history/news, cloud/sync, reminders, imports/exports, auto-backup, auto-update, portable build, localhost server, CDN assets, API-key flow, proxy configuration, or AKShare. | Spec §2.2 | 0–30 | REV-SCOPE-01 | Static/code review | Scope guard; no runtime test can prove all absences. |
 | REQ-ARCH-01 | Use modular monolith dependency direction UI → Services → Repositories/Providers → SQLite/HTTP. | Spec §3 | 2–25 | REV-ARCH-01 | Architecture review | No reverse dependencies. |
 | REQ-ARCH-02 | Dashboard uses exactly one QWebEngineView with local HTML/CSS/ES Modules + GridStack + QWebChannel. | Spec §3, §5.2, §24–25 | 0,3,11,12,14,23,27 | MAN-WIN-02; AUT-STATE-01 | Manual + integration | Settings must not add another WebEngine. |
 | REQ-ARCH-03 | Settings is a native PySide6 Widgets window and must not create a QWebEngineView. | Spec §3.2, §19 | 0,3,24,25 | MAN-WIN-03; MAN-SET-01 | Manual | Native settings only. |
@@ -46,6 +46,7 @@
 | REQ-MODE-03 | Interaction mode allows Todo interaction and Today Agenda timetable opening, while GridStack and Dashboard geometry stay fixed. | Spec §5.3 | 7,11,12,14 | AUT-BRIDGE-02; MAN-TODO-02 | Automated + manual | No layout drift in interaction. |
 | REQ-MODE-04 | Layout Edit is entered from Settings, makes Dashboard editable/foreground, enables GridStack and whole-window move/resize/show-hide, disables normal Todo interaction, and shows Save/Cancel. | Spec §5.3 | 14,24 | AUT-PROFILE-08; MAN-LAYOUT-01 | Automated + manual | Edit-mode interaction isolation. |
 | REQ-MODE-05 | Entering Layout Edit records prior daily mode; Save and Cancel both return to that prior Locked/Interaction mode. Restart from last recorded layout_edit restores Interaction. | Spec §5.3–5.4 | 14,26 | AUT-PROFILE-09; AUT-START-02 | Automated | Save/cancel and restart semantics differ intentionally. |
+| REQ-MODE-06 | Layout Edit temporarily replaces normal shell-bar content with a responsive edit bar; Save/Cancel and wrapping visibility controls never overlap the grid or show a horizontal scrollbar, controls are excluded from native dragging, and blank instruction space remains draggable. | Spec §5.3 | 14,31 | AUT-LAYOUT-02; MAN-LAYOUT-04 | Automated + manual | Narrow-window fallback must preserve the no-overlap invariant and keep Save/Cancel visible. |
 | REQ-START-01 | First-ever launch: Dashboard visible, Interaction mode, Settings opens once. | Spec §5.4 | 26 | AUT-START-03; MAN-WIN-08 | Automated + manual | First-run flag persisted in SQLite. |
 | REQ-START-02 | Later launches: Dashboard always visible; last Profile and last daily mode restored; layout_edit restores Interaction. | Spec §5.4 | 13,26 | AUT-START-01..04 | Automated | Show/hide state itself is not persisted as startup hidden. |
 | REQ-START-03 | No global hotkey in V1. | Spec §5.4 | 4,24 | REV-SCOPE-03 | Static review | Mode switch via tray/Settings. |
@@ -55,17 +56,18 @@
 | REQ-TRAY-04 | Only one DeskBoard instance may run; second launch focuses/opens Settings in existing instance and exits. | Spec §6 | 4 | AUT-SINGLE-01; MAN-TRAY-04 | Automated + manual |  |
 | REQ-WIDGET-01 | V1 widget keys are exactly weather, todo, today_agenda, gold, fx, china_indices, us_indices, finance_overview; max one instance of each per Profile. | Spec §7 | 5,11,13,17,22 | AUT-DB-08; AUT-PROFILE-01 | Automated | Reserved U.S. widget may be unavailable if no validated source. |
 | REQ-WIDGET-02 | Financial widgets may repeat underlying items visually but share provider/cache data and do not cause duplicate requests. | Spec §7 | 15,22 | AUT-NET-12; AUT-FIN-12 | Automated |  |
-| REQ-GRID-01 | Grid uses fixed 12-column topology; outer-window resize changes pixel cell size without responsive reflow of x/y/w/h. | Spec §8 | 0,14 | AUT-LAYOUT-01; MAN-LAYOUT-02 | Automated + manual |  |
+| REQ-GRID-01 | Grid uses fixed 48-column topology; outer-window resize changes pixel cell size without responsive reflow of x/y/w/h, and legacy 12-column coordinates are migrated. | Spec §8 | 0,14,23 | AUT-LAYOUT-01; MAN-LAYOUT-02 | Automated + manual |  |
 | REQ-GRID-02 | Widget content adapts by actual pixel size; generic compact/normal/expanded is derived and not persisted. | Spec §8 | 17,22,23 | AUT-PROFILE-02; MAN-UI-02 | Automated + manual | Widget-specific display config may persist. |
-| REQ-PROFILE-01 | Profile saves Dashboard geometry, widget layout/visibility, theme, opacity, and widget-specific display config. | Spec §9.2 | 13,14,23 | AUT-PROFILE-03..05 | Automated |  |
-| REQ-PROFILE-02 | Profile does not save Todo/course/cities/primary city/finance choices/class periods/provider cache/network status. | Spec §9.3 | 13,15,16,18 | AUT-PROFILE-06; REV-PROFILE-01 | Automated + review | Global data remains global. |
+| REQ-PROFILE-01 | Profile saves Dashboard geometry, widget layout/visibility, theme, font, opacity, and widget-specific display config. | Spec §9.2 | 13,14,23,30 | AUT-PROFILE-03..05; AUT-PROFILE-17 | Automated | Font uses installed-system fallback choices. |
+| REQ-PROFILE-02 | Profile does not save Todo/course/cities/primary city/finance choices/timetable scheme or period-axis configuration/provider cache/network status. | Spec §9.3 | 13,15,16,18,31 | AUT-PROFILE-06; REV-PROFILE-01 | Automated + review | Global semester/scheme data remains global. |
 | REQ-PROFILE-03 | Built-in Default exists, cannot be deleted/overwritten; up to 8 user Profiles; management only in Settings. | Spec §9.4 | 13,24 | AUT-PROFILE-07..11; MAN-SET-02 | Automated + manual |  |
 | REQ-PROFILE-04 | Required actions: switch, save current, save as, rename, delete, restore Default. | Spec §9.4 | 13,24 | AUT-PROFILE-12; MAN-SET-03 | Automated + manual |  |
 | REQ-PROFILE-05 | Saving Layout Edit while Default active opens native Save As prompt; confirm creates/switches user Profile and exits edit; dismiss stays in edit. | Spec §9.4 | 13,14,24 | AUT-PROFILE-13; MAN-LAYOUT-03 | Automated + manual |  |
 | REQ-PROFILE-06 | Deleting active user Profile switches to Default; creating ninth user Profile is rejected. | Spec §9.4 | 13,24 | AUT-PROFILE-14..15 | Automated |  |
-| REQ-THEME-01 | Exactly four light themes: Mist Blue, Mint Breeze, Almond Sand, Lavender Cloud; theme stored per Profile. | Spec §10 | 13,23,24 | AUT-PROFILE-16; MAN-UI-03 | Automated + manual | No dark theme. |
+| REQ-THEME-01 | Profile stores a shipped catalog of 12 themes: the original Mist Blue, Mint Breeze, Almond Sand, Lavender Cloud, Ocean Night, Graphite Night, Rose Dusk, High Contrast themes plus four original token-based genre-inspired themes. | Spec §10 | 13,23,30 | AUT-PROFILE-16..17; MAN-UI-03 | Automated + manual | No theme editor, remote theme assets, or third-party game art. |
 | REQ-THEME-02 | Visual style is minimal flat semi-transparent panel, subtle separators/rounding, almost no shadow, no acrylic/mica, no continuous animation; local assets only. | Spec §10 | 23,27 | MAN-UI-04; REV-UI-01 | Manual + review | clean > readable > fancy. |
 | REQ-THEME-03 | Finance direction convention is red=up, green=down, explicit sign; gold may use theme accent. | Spec §10, §16.6 | 22,23 | AUT-FIN-11; MAN-UI-05 | Automated + manual |  |
+| REQ-THEME-04 | During Profile theme preview, native Settings applies the same semantic palette synchronously as Dashboard; before a theme is loaded it uses the safe initial Mist Blue/light palette and never inherits black Windows night-mode surfaces. | Spec §10, §19.1 | 30,31 | AUT-UI-02; MAN-SET-15 | Automated + manual | Preview is transient until Save Appearance. |
 | REQ-TODO-01 | Todo fields/semantics: content, optional deadline, optional planned date/time, completion via completed_at, manual display order; no priority/tags/subtasks/recurrence/reminders/etc. | Spec §11.1–11.2 | 5,6 | AUT-TODO-01; REV-TODO-01 | Automated + review |  |
 | REQ-TODO-02 | Deadline combinations: date+time exact; date-only; time-only defaults date to today; neither means no deadline. | Spec §11.3 | 6 | AUT-TODO-02..05 | Automated |  |
 | REQ-TODO-03 | A Todo due today appears in Today Agenda regardless of planned date; it is date-only when its planned date is missing/another date, while deadline alone never creates a timetable event; overdue incomplete Todo remains visible with only subtle warning allowed. | Spec §11.3, §13.2, §14.5 | 6,10,11,12,23 | AUT-TODO-06; AUT-AGENDA-06; AUT-TT-08 | Automated |  |
@@ -78,13 +80,14 @@
 | REQ-TODO-10 | Settings Todo has Incomplete and Completed history; completed history supports view, restore, permanent delete with confirmation; no search/stats/tags/recycle bin. | Spec §11.7 | 8,25 | AUT-TODO-20..22; MAN-SET-04 | Automated + manual |  |
 | REQ-TODO-11 | Completed today stays in position and uses pale/light green + check, no strikethrough; completed state carries into Agenda/timetable. | Spec §11.8 | 7,10–12,23 | AUT-PRES-02; AUT-AGENDA-07; AUT-TT-09; MAN-UI-07 | Automated + manual |  |
 | REQ-COURSE-01 | Multiple semesters may exist; zero or one active; start_monday must be Monday; teaching week derived from local date; no automatic semester switching. | Spec §12.1 | 5,9,26 | AUT-COURSE-01..06 | Automated |  |
-| REQ-COURSE-02 | Class periods: valid active set is exactly 8 unique period_no 1..8 with start/end; fresh install may be unconfigured; partial/duplicate/out-of-range invalid; do not invent times. | Spec §12.2 | 5,9,25 | AUT-COURSE-07..12; MAN-SET-05 | Automated + manual |  |
+| REQ-COURSE-02 | Timetable schemes are reusable global configurations: custom schemes have 1..24 exact, ordered, non-overlapping period rows; uniform schemes use a configurable continuous day range and equal visual guides; fresh/incomplete configuration is unconfigured; invalid edits never become active. | Spec §12.2 | 5,9,25,31 | AUT-TSCHEME-01..14; MAN-SET-05; MAN-TT-08..11 | Automated + manual | Existing complete eight-period values are preserved by migration. |
 | REQ-COURSE-03 | Recurring course fields/validation: semester, name, weekday 1..7, actual start/end, start_week/end_week, optional classroom; repeats weekly; no odd/even field. | Spec §12.3 | 5,9 | AUT-COURSE-13..17 | Automated |  |
 | REQ-COURSE-04 | Blank classroom is not displayed. | Spec §12.3 | 10,11,12 | AUT-PRES-03 | Automated |  |
 | REQ-COURSE-05 | Cancellation uniquely targets one recurring occurrence date and suppresses only that occurrence. | Spec §12.4 | 5,9 | AUT-COURSE-18..20 | Automated |  |
 | REQ-COURSE-06 | One-off course uses explicit date/start/end/classroom; reschedule = cancellation + one-off, no reschedule relationship model. | Spec §12.5 | 5,9 | AUT-COURSE-21..24 | Automated |  |
 | REQ-COURSE-07 | Outside active semester teaching range: recurring absent, timetable week label blank, matching one-off course may still render. | Spec §12.5 | 9,10,12 | AUT-COURSE-25; AUT-TT-01..02 | Automated |  |
 | REQ-COURSE-08 | Course/semester editing, cancellations, one-offs are Settings-only, not direct Dashboard edits. | Spec §12.5 | 25 | MAN-SET-06; REV-SCOPE-04 | Manual + review |  |
+| REQ-COURSE-09 | Each semester has zero or one timetable scheme binding; a scheme may be reused by multiple semesters; Profile changes do not affect the binding. | Spec §12.1–12.2 | 31 | AUT-TSCHEME-05..07; MAN-TT-08 | Automated + manual | Deleting a bound scheme is confirmation-gated and returns affected semesters to configure-first. |
 | REQ-AGENDA-01 | Today Agenda is derived, not persisted; combines CourseService + TodoService through AgendaService. | Spec §13 | 10,11 | AUT-AGENDA-01; REV-DB-03 | Automated + review | No agenda/schedule table. |
 | REQ-AGENDA-02 | Timed section contains today's actual courses + point/range planned Todos and sorts by start time. | Spec §13.1 | 10,11 | AUT-AGENDA-02..04 | Automated |  |
 | REQ-AGENDA-03 | Past and future timed items remain visible all day; no time-passed hide/grey. | Spec §13.1 | 10,11,23 | AUT-AGENDA-05; MAN-UI-08 | Automated + manual |  |
@@ -94,12 +97,14 @@
 | REQ-TT-01 | Weekly timetable is an overlay inside the single Dashboard Web page, view-only, current local week only, Mon–Sun seven columns, no week navigation. | Spec §14, §14.1 | 12 | AUT-TT-03..05; MAN-TT-01 | Automated + manual |  |
 | REQ-TT-02 | Week label is 第N周 inside teaching range and blank outside. | Spec §14.1 | 10,12 | AUT-TT-01..02 | Automated |  |
 | REQ-TT-03 | Header mode supports weekday only, weekday+date, date only. | Spec §14.2 | 10,12,25 | AUT-TT-06; MAN-TT-02 | Automated + manual |  |
-| REQ-TT-04 | Vertical axis uses continuous real clock time; labels 1..8; visible range is period1.start to period8.end; events outside range excluded. | Spec §14.3 | 10,12 | AUT-TT-07; AUT-TT-10..11; MAN-TT-03 | Automated + manual |  |
-| REQ-TT-05 | If period set unconfigured, overlay shows compact configure-first state and does not invent bounds; Today Agenda still works. | Spec §14.3 | 9,10,12 | AUT-TT-12; MAN-TT-04 | Automated + manual |  |
+| REQ-TT-04 | Vertical axis uses continuous real clock time from the active scheme: custom range is first-period start to last-period end with saved 1..N references; uniform range is configured day_start to day_end with equal visual guides and no artificial school-period semantics; events outside range are excluded. | Spec §14.3 | 10,12,31 | AUT-TT-07; AUT-TTSCHEME-01..04; MAN-TT-03; MAN-TT-09..10 | Automated + manual | Course/Todo positions are never snapped to guide bands. |
+| REQ-TT-05 | If the active semester has no valid scheme, overlay shows compact configure-first state and does not invent bounds; Today Agenda still works. | Spec §14.3 | 9,10,12,31 | AUT-TT-12; AUT-TTSCHEME-05..06; MAN-TT-04; MAN-TT-11 | Automated + manual | A complete legacy eight-period set is migrated unchanged. |
 | REQ-TT-06 | Course blocks use actual start/end and are not snapped to period cells. | Spec §14.4 | 10,12 | AUT-TT-13; MAN-TT-05 | Automated + manual |  |
 | REQ-TT-07 | Only planned-time Todos appear: point→thin exact marker, range→normal block, date-only excluded; must be current week and inside visible range. | Spec §14.5 | 10,12 | AUT-TT-14..18; MAN-TT-06 | Automated + manual |  |
 | REQ-TT-08 | Past timetable events remain rendered normally; no automatic hide/grey due solely to elapsed time. | Spec §14.6 | 10,12,23 | AUT-TT-19; MAN-UI-09 | Automated + manual |  |
 | REQ-TT-09 | Course/Todo overlap allowed; course visual priority; Todo narrow/secondary + light overlap; no blocking or auto-reschedule. | Spec §14.7 | 10,12,23 | AUT-TT-20..21; MAN-TT-07 | Automated + manual |  |
+| REQ-TT-10 | The timetable presenter/bridge exposes normalized active-scheme axis metadata rather than raw SQLite rows, and Web rendering handles dynamic period counts and both axis modes. | Spec §14.3, §22 | 12,31 | AUT-TTSCHEME-01..06; REV-ARCH-01 | Automated + review | Python remains source of truth; pixel positioning stays Web-side. |
+| REQ-TT-11 | Existing configured eight-period behavior remains visually and semantically compatible after migration; fresh installs do not receive fabricated school times. | Spec §12.2, §14.3, §21 | 5,9,31 | AUT-TSCHEME-01..04; MAN-TT-11 | Automated + manual | Legacy `class_periods` is migration input only. |
 | REQ-WEATHER-01 | Normalized weather fields are city, condition, current_temperature, high, low, wind; no feels-like/precip/AQI/lifestyle fields required. | Spec §15.1 | 16,17 | AUT-WTH-01..02 | Automated |  |
 | REQ-WEATHER-02 | Global weather city list has order and exactly one primary city; mainland-China support required; overseas optional. | Spec §15.2 | 16,24 | AUT-WTH-03..06; MAN-PROV-01 | Automated + manual |  |
 | REQ-WEATHER-03 | Small/normal weather prioritizes primary city; Profile may choose expanded single-city detail vs multi-city summary. | Spec §15.3 | 13,17,23 | AUT-WTH-07..08; MAN-UI-10 | Automated + manual |  |
@@ -108,7 +113,7 @@
 | REQ-FIN-02 | Finance enable/disable and order are global, not Profile-specific. | Spec §16.2 | 18,24 | AUT-FIN-04..06 | Automated |  |
 | REQ-FIN-03 | Candidate starting set includes Au99.99, USD/EUR/JPY/HKD CNY, major A-share and U.S. indices subject to validation; U.S. widget reserved but unavailable/hidden if no source passes. | Spec §16.3 | 1,18–21 | AUT-FIN-07; MAN-PROV-05 | Automated + manual |  |
 | REQ-FIN-04 | Finance display is name/value/change% where meaningful + optional closed label; no charts/history; capacity grows with widget size; no scrolling/pagination. | Spec §16.4 | 22,23 | AUT-FIN-08..10; MAN-UI-12 | Automated + manual |  |
-| REQ-FIN-05 | FX normalizes to 1 foreign unit = CNY regardless of upstream basis. | Spec §16.4 | 19 | AUT-FX-01..04 | Automated |  |
+| REQ-FIN-05 | FX Provider/cache values normalize to 1 foreign unit = CNY regardless of upstream basis; Finance presentation displays `1 CNY = N foreign units` when the normalized value is greater than 0 and less than 1, and otherwise retains the foreign-unit-to-CNY basis. | Spec §16.4 | 19,22 | AUT-FX-01..04; AUT-FIN-08 | Automated |  |
 | REQ-FIN-06 | When reliably closed, show latest completed-session close with 上一交易日收盘; if market state unknown, show value without guessing label; no front last-success timestamp. | Spec §16.5 | 19–22 | AUT-FIN-13..15; MAN-UI-13 | Automated + manual |  |
 | REQ-SOURCE-01 | Every shipped network source works on ordinary mainland-China internet with no VPN/proxy/Clash and no user API key/account; app has no proxy settings. | Spec §17.1 | 1,16,19–21,29 | MAN-PROV-01..05; REV-SCOPE-06 | Manual + review | Hard release/source gate. |
 | REQ-SOURCE-02 | Source preference is official no-auth public → parsable official page → stable public JSON/HTTP → defer; no runtime multi-source fallback chain. | Spec §17.2 | 1,16,19–21 | REV-PROV-02; MAN-PROV-06 | Review + manual | One selected provider per logical item/group. |
@@ -126,10 +131,12 @@
 | REQ-SET-03 | General includes Dashboard show/hide, Locked/Interaction, enter Layout Edit, autostart, exit. | Spec §19.2 | 24,26 | MAN-SET-11 | Manual |  |
 | REQ-SET-04 | Data Status shows source/group, last attempt, last success, success/failure, readable error, attribution, refresh controls, Open Log Folder. | Spec §19.3 | 25 | AUT-SET-02; MAN-SET-12 | Automated + manual |  |
 | REQ-SET-05 | About shows name, version, source/disclaimer references; no auto-update. | Spec §19.4 | 25,29 | MAN-SET-13; REV-SCOPE-08 | Manual + review |  |
+| REQ-SET-06 | Settings defaults to Simplified Chinese and can switch native static UI to English; selection is stored in SQLite `app_settings`. | Spec §19.2 | 30 | AUT-SET-14; MAN-SET-14 | Automated + manual | User-created names/data are not translated. |
+| REQ-SET-07 | Courses Settings exposes scheme CRUD/binding and custom/uniform axis editing with explicit validation and Save/Cancel; no invalid partial configuration becomes active. | Spec §12.2, §19.1 | 31 | AUT-TSCHEME-08..14; MAN-SET-05; MAN-TT-08..10 | Automated + manual | Bound-scheme deletion is confirmation-gated. |
 | REQ-TIME-01 | Todo/course/semester/day-rollover use Windows system local time; no separate app timezone; remote weather city does not change it. | Spec §20 | 5,6,9,10,26 | AUT-TIME-01..04 | Automated |  |
 | REQ-TIME-02 | Python-side lightweight day-rollover timer refreshes date-dependent views near local midnight; no one-second JS clock polling. | Spec §20 | 26 | AUT-START-05; REV-PERF-01 | Automated + review |  |
-| REQ-DBMODEL-01 | V1 logical tables are exactly schema_meta, app_settings, todos, semesters, recurring_courses, course_cancellations, one_off_courses, class_periods, profiles, profile_widgets, weather_cities, finance_preferences, network_cache, network_state. | Spec §21 | 5 | AUT-DB-08 | Automated |  |
-| REQ-DBMODEL-02 | Key constraints/cascades: unique cancellation occurrence, period_no 1..8, unique profile/widget, max 8 user Profiles, FK enabled, semester/course/profile cascades, no generic soft-delete. | Spec §21.1 | 5,6,9,13 | AUT-DB-09..16 | Automated |  |
+| REQ-DBMODEL-01 | V1 logical tables are exactly schema_meta, app_settings, todos, semesters, timetable_schemes, timetable_scheme_periods, recurring_courses, course_cancellations, one_off_courses, profiles, profile_widgets, weather_cities, finance_preferences, network_cache, network_state. Legacy `class_periods` is migration input only. | Spec §21 | 5,31 | AUT-DB-08; AUT-TSCHEME-01 | Automated |  |
+| REQ-DBMODEL-02 | Key constraints/cascades: unique cancellation occurrence; nullable semester-to-scheme FK; scheme period_count 1..24; exact custom rows or no uniform child rows with valid day bounds; unique scheme/period; unique profile/widget; max 8 user Profiles; FK enabled; semester/course/profile cascades; no generic soft-delete. | Spec §21.1 | 5,6,9,13,31 | AUT-DB-09..16; AUT-TSCHEME-02..04 | Automated |  |
 | REQ-DBMODEL-03 | network_cache stores only successful normalized payload/time; network_state stores attempt/status/error; failure updates state without destroying cache; dot color not stored. | Spec §21.2 | 5,15 | AUT-NET-14; AUT-NET-29 | Automated |  |
 | REQ-BRIDGE-01 | Initial Dashboard load obtains one coarse state snapshot rather than many small getters. | Spec §22.1 | 11 | AUT-STATE-01 | Automated |  |
 | REQ-BRIDGE-02 | Bridge semantic commands include initial state, quick-add/toggle/reorder Todo, open Todo editor/delete, weekly timetable, save/cancel layout. | Spec §22.2 | 7,8,11,12,14 | AUT-BRIDGE-01..07 | Automated | Exact Qt signatures may adapt only for serialization. |
@@ -238,7 +245,7 @@
 
 ### Task 22: Finance Presenter and Dashboard Widgets
 
-`REQ-ARCH-01`, `REQ-ARCH-04`, `REQ-ARCH-05`, `REQ-BRIDGE-03`, `REQ-BRIDGE-04`, `REQ-FIN-04`, `REQ-FIN-06`, `REQ-GRID-02`, `REQ-NET-02`, `REQ-NET-07`, `REQ-SCOPE-01`, `REQ-TEST-01`, `REQ-TEST-02`, `REQ-THEME-03`, `REQ-WIDGET-01`, `REQ-WIDGET-02`
+`REQ-ARCH-01`, `REQ-ARCH-04`, `REQ-ARCH-05`, `REQ-BRIDGE-03`, `REQ-BRIDGE-04`, `REQ-FIN-04`, `REQ-FIN-05`, `REQ-FIN-06`, `REQ-GRID-02`, `REQ-NET-02`, `REQ-NET-07`, `REQ-SCOPE-01`, `REQ-TEST-01`, `REQ-TEST-02`, `REQ-THEME-03`, `REQ-WIDGET-01`, `REQ-WIDGET-02`
 
 ### Task 23: Dashboard Visual Baseline, Themes, and Readability Gate
 
@@ -267,6 +274,16 @@
 ### Task 29: Documentation and Public Release Gate
 
 `REQ-PROD-03`, `REQ-REL-01`, `REQ-SCOPE-01`, `REQ-SET-05`, `REQ-SOURCE-01`, `REQ-SOURCE-03`
+
+### Task 30: Settings Redesign, Dashboard Themes/Fonts, and Settings Localization
+
+`REQ-ARCH-01`, `REQ-ARCH-03`, `REQ-DB-04`, `REQ-PROFILE-01`, `REQ-SET-01`, `REQ-SET-06`, `REQ-THEME-01`, `REQ-THEME-02`, `REQ-THEME-03`, `REQ-SCOPE-01`
+
+### Task 31: Timetable Schemes, Semester Binding, and Synchronized Settings/Layout Preview
+
+`REQ-MODE-06`, `REQ-PROFILE-02`, `REQ-THEME-04`, `REQ-COURSE-02`,
+`REQ-COURSE-09`, `REQ-TT-04`, `REQ-TT-05`, `REQ-TT-10`, `REQ-TT-11`,
+`REQ-SET-07`, `REQ-DBMODEL-01`, `REQ-DBMODEL-02`, `REQ-SCOPE-01`
 
 ## Traceability Maintenance Rule
 

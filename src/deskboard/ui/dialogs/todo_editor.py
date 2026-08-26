@@ -19,6 +19,11 @@ from PySide6.QtWidgets import (
 )
 
 from deskboard.models.todo import Todo, TodoUpdate
+from deskboard.ui.settings.i18n import (
+    SUPPORTED_LANGUAGES,
+    translate_text,
+    translate_widget_tree,
+)
 
 
 def build_todo_update(
@@ -60,6 +65,7 @@ class TodoEditorDialog(QDialog):
         super().__init__(parent)
         self._today = today
         self.todo_update: TodoUpdate | None = None
+        self._language = "zh_CN"
         self.setWindowTitle("Edit Todo")
         self.setModal(True)
         self.resize(440, 360)
@@ -95,6 +101,14 @@ class TodoEditorDialog(QDialog):
         buttons.accepted.connect(self._accept_values)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        self.set_language(self._language)
+
+    def set_language(self, language: str) -> None:
+        if language not in SUPPORTED_LANGUAGES:
+            return
+        self._language = language
+        self.setWindowTitle(translate_text("Edit Todo", language))
+        translate_widget_tree(self, language)
 
     def _date_row(
         self, form: QFormLayout, label: str, value: date | None
@@ -148,7 +162,11 @@ class TodoEditorDialog(QDialog):
                 ),
             )
         except (TypeError, ValueError) as error:
-            QMessageBox.warning(self, "Invalid Todo", str(error))
+            QMessageBox.warning(
+                self,
+                translate_text("Invalid Todo", self._language),
+                translate_text(str(error), self._language),
+            )
             return
         self.accept()
 

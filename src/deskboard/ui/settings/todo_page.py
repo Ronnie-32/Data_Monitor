@@ -23,6 +23,11 @@ from PySide6.QtWidgets import (
 from deskboard.infrastructure.clock import Clock
 from deskboard.models.todo import Todo, TodoUpdate
 from deskboard.ui.dialogs.todo_editor import TodoEditorDialog
+from deskboard.ui.settings.i18n import (
+    SUPPORTED_LANGUAGES,
+    translate_text,
+    translate_widget_tree,
+)
 
 
 class TodoManagementService(Protocol):
@@ -64,6 +69,7 @@ class TodoPage(QWidget):
         self._confirm_delete = confirm_delete or self._show_delete_confirmation
         self._editor_factory = editor_factory or TodoEditorDialog
         self._on_changed = on_changed or (lambda: None)
+        self._language = "zh_CN"
 
         layout = QVBoxLayout(self)
         heading = QLabel("Todo", self)
@@ -104,6 +110,12 @@ class TodoPage(QWidget):
         self._fill(self.incomplete_list, self._service.get_incomplete_items())
         self._fill(self.completed_list, self._service.get_completed_history())
 
+    def set_language(self, language: str) -> None:
+        if language not in SUPPORTED_LANGUAGES:
+            return
+        self._language = language
+        translate_widget_tree(self, language)
+
     @staticmethod
     def _fill(widget: QListWidget, todos: list[Todo]) -> None:
         widget.clear()
@@ -128,6 +140,9 @@ class TodoPage(QWidget):
         todo = self._service.get(todo_id)
         dialog_parent = self if self.isVisible() else None
         dialog = self._editor_factory(todo, self._clock.today(), dialog_parent)
+        set_language = getattr(dialog, "set_language", None)
+        if callable(set_language):
+            set_language(self._language)
         if dialog.exec() != QDialog.DialogCode.Accepted or dialog.todo_update is None:
             return False
         self._service.update(todo_id, dialog.todo_update)
@@ -181,8 +196,12 @@ class TodoPage(QWidget):
             parent = None
         result = QMessageBox.question(
             parent,
-            "Delete Todo permanently?",
-            f'Delete "{content}" permanently? This cannot be undone.',
+            translate_text("Delete Todo permanently?", self._language),
+            (
+                f'永久删除“{content}”？此操作无法撤销。'
+                if self._language == "zh_CN"
+                else f'Delete "{content}" permanently? This cannot be undone.'
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
         )

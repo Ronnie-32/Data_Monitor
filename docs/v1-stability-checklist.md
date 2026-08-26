@@ -51,7 +51,7 @@ $env:QTWEBENGINE_DISABLE_SANDBOX='1'
 | 可复现确定性子集 | presenter/provider/startup/autostart/worker，排除 ACL 用例 | `PASS` | `56 passed in 1.27s` |
 | Python 编译 | `\.venv\Scripts\python.exe -m compileall -q src tests` | `PASS` | `COMPILEALL_PASS` |
 | JS 语法 | 对 10 个 `.js` 执行 `node --check` | `PASS` | `JS_FILES=10; NODE_CHECK_PASS` |
-| Schema migration smoke | SQLite fresh DB → `migrate` | `PASS` | `schema_version=2` |
+| Schema migration smoke | SQLite fresh DB → `migrate` | `PASS` | `schema_version=3` |
 | 静态范围/性能复核 | `REV-SCOPE-01`、`REV-PERF-01`、`REV-DONE-01` | `AWAITING_MANUAL_ACCEPTANCE` | 非 vendor JS/CSS 无 polling/animation/fetch；daily Windows visibility guard 有 500ms Qt timer，需实机 CPU 证据 |
 | 差异空白 | `git diff --check` | `PASS` | exit 0；仅有工作区换行提示 |
 | Ruff | `.venv\Scripts\ruff.exe check src tests installer\deskboard.spec` | `BASELINE` | 3 个既有 import-order 问题，未在 Task 28 越界修复 |

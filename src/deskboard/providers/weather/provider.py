@@ -8,7 +8,12 @@ import re
 from collections.abc import Iterable
 from typing import Any
 
-from deskboard.models.weather import DEFAULT_WEATHER_CITIES, Weather, WeatherCity
+from deskboard.models.weather import (
+    DEFAULT_WEATHER_CITIES,
+    Weather,
+    WeatherCity,
+    resolve_weather_source_city_id,
+)
 from deskboard.providers.base import NetworkItem, ProviderItemResult, ProviderResult
 from deskboard.providers.errors import ProviderDataError, ProviderParseError
 from deskboard.providers.http_client import HttpClient
@@ -75,6 +80,19 @@ class WeatherProvider:
     def cities(self) -> tuple[WeatherCity, ...]:
         return self._cities
 
+    def set_cities(self, cities: Iterable[WeatherCity]) -> None:
+        """Replace the in-memory city catalog used by subsequent fetches."""
+
+        selected = tuple(cities)
+        if not selected:
+            raise ValueError("WeatherProvider requires at least one city")
+        if len({city.city_key for city in selected}) != len(selected):
+            raise ValueError("WeatherProvider city keys must be unique")
+        self._cities = selected
+        self.items = tuple(NetworkItem(city.city_key, self.group) for city in selected)
+
+    update_cities = set_cities
+
     def fetch(self) -> ProviderResult:
         outcomes: list[ProviderItemResult] = []
         for city in self._cities:
@@ -89,14 +107,15 @@ class WeatherProvider:
         return ProviderResult.partial(outcomes)
 
     def _fetch_city(self, city: WeatherCity) -> Weather:
+        source_city_id = resolve_weather_source_city_id(city.source_city_id)
         headers = {
-            "Referer": f"http://www.weather.com.cn/weather1d/{city.source_city_id}.shtml"
+            "Referer": f"http://www.weather.com.cn/weather1d/{source_city_id}.shtml"
         }
         current_raw = self._get_raw(
-            WEATHER_INDEX_URL.format(city_id=city.source_city_id), headers
+            WEATHER_INDEX_URL.format(city_id=source_city_id), headers
         )
         forecast_raw = self._get_raw(
-            WEATHER_FORECAST_URL.format(city_id=city.source_city_id), headers
+            WEATHER_FORECAST_URL.format(city_id=source_city_id), headers
         )
         return parse_weather(current_raw, forecast_raw, city=city)
 

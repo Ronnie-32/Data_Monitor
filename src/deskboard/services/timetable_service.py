@@ -6,7 +6,13 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Literal
 
-from deskboard.models.course import ClassPeriod, CourseOccurrence
+from deskboard.models.course import (
+    END_OF_DAY,
+    ClassPeriod,
+    CourseOccurrence,
+    TimetableScheme,
+    TimetableSchemePeriod,
+)
 from deskboard.models.todo import Todo
 from deskboard.services.course_service import CourseService
 from deskboard.services.todo_service import TodoService
@@ -52,6 +58,16 @@ class TimetableEvent:
         return self.title
 
 
+@dataclass(frozen=True, slots=True)
+class TimetableGuide:
+    """A normalized visual reference; it is not a school-period event."""
+
+    index: int
+    start: time
+    end: time
+    label: str | None = None
+
+
 @dataclass(slots=True)
 class TimetableWeek:
     """Current Monday-Sunday semantic timetable state."""
@@ -67,6 +83,11 @@ class TimetableWeek:
     configuration_required: bool = False
     header_mode: str = "weekday_date"
     headers: list[str] = field(default_factory=list)
+    axis_mode: str | None = None
+    scheme_id: int | None = None
+    scheme_name: str | None = None
+    guide_count: int = 0
+    guides: list[TimetableGuide] = field(default_factory=list)
 
     @property
     def monday(self) -> date:
@@ -116,11 +137,26 @@ class TimetableService:
         normalized_mode = _normalize_header_mode(header_mode)
         week_start = day - timedelta(days=day.weekday())
         week_dates = [week_start + timedelta(days=offset) for offset in range(7)]
-        periods = _configured_periods(self._course_service.get_class_periods())
+        has_scheme_api = callable(
+            getattr(self._course_service, "get_active_timetable_scheme", None)
+        )
+        scheme = _active_scheme(self._course_service)
+        axis = _axis_from_scheme(scheme) if scheme is not None else None
+        if axis is None and not has_scheme_api:
+            # Compatibility for lightweight fakes and the pre-scheme API. The
+            # production CourseService resolves only the active semester's
+            # bound scheme above.
+            periods = _configured_periods(
+                self._course_service.get_class_periods()
+                if hasattr(self._course_service, "get_class_periods")
+                else []
+            )
+            if periods is not None:
+                axis = _axis_from_legacy_periods(periods)
         week_label = _week_label(self._course_service, day)
         headers = [_format_header(current, normalized_mode) for current in week_dates]
 
-        if periods is None:
+        if axis is None:
             return TimetableWeek(
                 week_start=week_start,
                 week_end=week_dates[-1],
@@ -135,8 +171,16 @@ class TimetableService:
                 headers=headers,
             )
 
-        visible_start = periods[0].start_time
-        visible_end = periods[-1].end_time
+        (
+            axis_mode,
+            periods,
+            visible_start,
+            visible_end,
+            guides,
+            scheme_id,
+            scheme_name,
+            guide_count,
+        ) = axis
         events = self._build_events(
             day=day,
             week_start=week_start,
@@ -156,6 +200,11 @@ class TimetableService:
             configuration_required=False,
             header_mode=normalized_mode,
             headers=headers,
+            axis_mode=axis_mode,
+            scheme_id=scheme_id,
+            scheme_name=scheme_name,
+            guide_count=guide_count,
+            guides=guides,
         )
 
     def _build_events(
@@ -201,7 +250,10 @@ class TimetableService:
 def _looks_like_course_service(value: object) -> bool:
     return all(
         hasattr(value, name)
-        for name in ("get_class_periods", "get_occurrences_for_week", "get_teaching_week")
+        for name in ("get_occurrences_for_week", "get_teaching_week")
+    ) and (
+        hasattr(value, "get_class_periods")
+        or hasattr(value, "get_active_timetable_scheme")
     )
 
 
@@ -214,6 +266,142 @@ def _configured_periods(periods: list[ClassPeriod]) -> list[ClassPeriod] | None:
     if len(normalized) != 8 or [period.period_no for period in normalized] != list(range(1, 9)):
         return None
     return normalized
+
+
+def _active_scheme(course_service: object) -> TimetableScheme | None:
+    getter = getattr(course_service, "get_active_timetable_scheme", None)
+    if not callable(getter):
+        return None
+    scheme = getter()
+    return scheme if isinstance(scheme, TimetableScheme) else None
+
+
+def _axis_from_legacy_periods(
+    periods: list[ClassPeriod],
+) -> tuple[
+    str,
+    list[ClassPeriod],
+    time,
+    time,
+    list[TimetableGuide],
+    int | None,
+    str | None,
+    int,
+]:
+    guides = [
+        TimetableGuide(item.period_no, item.start_time, item.end_time, str(item.period_no))
+        for item in periods
+    ]
+    return (
+        "custom_periods",
+        periods,
+        periods[0].start_time,
+        periods[-1].end_time,
+        guides,
+        None,
+        None,
+        len(periods),
+    )
+
+
+def _axis_from_scheme(
+    scheme: TimetableScheme,
+) -> tuple[
+    str,
+    list[ClassPeriod],
+    time,
+    time,
+    list[TimetableGuide],
+    int | None,
+    str | None,
+    int,
+] | None:
+    if scheme.axis_mode == "custom_periods":
+        if (
+            len(scheme.periods) != scheme.period_count
+            or [item.period_no for item in scheme.periods]
+            != list(range(1, scheme.period_count + 1))
+            or not _valid_scheme_periods(scheme.periods)
+        ):
+            return None
+        periods = [
+            ClassPeriod(item.period_no, item.start_time, item.end_time)
+            for item in scheme.periods
+        ]
+        guides = [
+            TimetableGuide(item.period_no, item.start_time, item.end_time, str(item.period_no))
+            for item in scheme.periods
+        ]
+        return (
+            "custom_periods",
+            periods,
+            periods[0].start_time,
+            periods[-1].end_time,
+            guides,
+            scheme.id,
+            scheme.name,
+            scheme.period_count,
+        )
+    if scheme.axis_mode != "uniform_day":
+        return None
+    if (
+        scheme.periods
+        or scheme.day_start is None
+        or scheme.day_end is None
+        or scheme.day_end <= scheme.day_start
+        or not 1 <= scheme.period_count <= 24
+    ):
+        return None
+    return (
+        "uniform_day",
+        [],
+        scheme.day_start,
+        scheme.day_end,
+        _uniform_guides(scheme.day_start, scheme.day_end, scheme.period_count),
+        scheme.id,
+        scheme.name,
+        scheme.period_count,
+    )
+
+
+def _valid_scheme_periods(periods: tuple[TimetableSchemePeriod, ...]) -> bool:
+    previous_end: time | None = None
+    for item in periods:
+        if item.end_time <= item.start_time:
+            return False
+        if previous_end is not None and item.start_time < previous_end:
+            return False
+        previous_end = item.end_time
+    return True
+
+
+def _uniform_guides(start: time, end: time, count: int) -> list[TimetableGuide]:
+    start_seconds = _clock_seconds(start)
+    end_seconds = _clock_seconds(end)
+    guides: list[TimetableGuide] = []
+    for index in range(count):
+        lower = _time_from_seconds(
+            round(start_seconds + (end_seconds - start_seconds) * index / count)
+        )
+        upper = _time_from_seconds(
+            round(start_seconds + (end_seconds - start_seconds) * (index + 1) / count)
+        )
+        guides.append(TimetableGuide(index + 1, lower, upper, None))
+    return guides
+
+
+def _clock_seconds(value: time) -> float:
+    if value == END_OF_DAY:
+        return 24 * 60 * 60
+    return value.hour * 3600 + value.minute * 60 + value.second + value.microsecond / 1_000_000
+
+
+def _time_from_seconds(value: int) -> time:
+    if value >= 24 * 60 * 60:
+        return END_OF_DAY
+    hours, remainder = divmod(max(0, value), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return time(hours, minutes, seconds)
 
 
 def _week_label(course_service: CourseService, day: date) -> str:

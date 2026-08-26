@@ -12,7 +12,10 @@ from deskboard.infrastructure.clock import Clock, SystemClock
 from deskboard.models.profile import Profile, ProfileState
 from deskboard.models.todo import Todo
 from deskboard.presentation.agenda_presenter import present_today_agenda
-from deskboard.presentation.dashboard_state import present_dashboard_state
+from deskboard.presentation.dashboard_state import (
+    FinancePresenterLike,
+    present_dashboard_state,
+)
 from deskboard.presentation.layout_state import present_profile_state
 from deskboard.presentation.timetable_presenter import present_timetable
 from deskboard.presentation.todo_presenter import present_todos
@@ -20,6 +23,8 @@ from deskboard.presentation.todo_presenter import present_todos
 
 class TodoServiceLike(Protocol):
     def add_quick(self, content: str) -> Todo: ...
+
+    def add_today(self, content: str) -> Todo: ...
 
     def set_completed(self, todo_id: int, completed: bool) -> Todo: ...
 
@@ -64,21 +69,32 @@ class RefreshServiceLike(Protocol):
         self, listener: Callable[[str], None]
     ) -> Callable[[], None]: ...
 
+
+class SettingsServiceLike(Protocol):
+    @property
+    def ui_language(self) -> str: ...
+
+    @property
+    def timetable_header_mode(self) -> str: ...
+
 class DashboardBridge(QObject):
     shellReady = Signal()
     stateChanged = Signal(dict)
     profileChanged = Signal(dict)
     modeChanged = Signal(str)
+    languageChanged = Signal(str)
     settingsRequested = Signal()
     todosChanged = Signal(list)
     agendaChanged = Signal(dict)
     weatherChanged = Signal(dict)
+    financeChanged = Signal(dict)
     networkStatusChanged = Signal(dict)
     timetableChanged = Signal(dict)
     weeklyTimetableRequested = Signal()
     layoutEditRequested = Signal()
     layoutSaveRequested = Signal(dict)
     layoutCancelRequested = Signal()
+    windowDragRequested = Signal(int, int)
     todoEditorRequested = Signal(int)
     todoDeleteRequested = Signal(int)
 
@@ -92,8 +108,10 @@ class DashboardBridge(QObject):
         profile_service: ProfileServiceLike | None = None,
         clock: Clock | None = None,
         weather_presenter: WeatherPresenterLike | None = None,
+        finance_presenter: FinancePresenterLike | None = None,
         network_status_service: NetworkStatusServiceLike | None = None,
         refresh_service: RefreshServiceLike | None = None,
+        settings_service: SettingsServiceLike | None = None,
     ) -> None:
         super().__init__(parent)
         self._todo_service = todo_service
@@ -104,7 +122,9 @@ class DashboardBridge(QObject):
         self._mode = AppMode.INTERACTION
         self._profile_state_override: ProfileState | None = None
         self._weather_presenter = weather_presenter
+        self._finance_presenter = finance_presenter
         self._network_status_service = network_status_service
+        self._settings_service = settings_service
         self._remove_refresh_listener: Callable[[], None] | None = None
         if refresh_service is not None:
             self._remove_refresh_listener = refresh_service.add_listener(
@@ -132,6 +152,14 @@ class DashboardBridge(QObject):
         self._mode = mode
         self.modeChanged.emit(mode.value)
 
+    def publish_language(self, language: str | None = None) -> None:
+        """Notify the Web surface after the native language preference changes."""
+
+        value = language or self._stored_language()
+        if value not in {"zh_CN", "en_US"}:
+            value = "zh_CN"
+        self.languageChanged.emit(value)
+
     @Slot()
     def enterLayoutEdit(self) -> None:  # noqa: N802
         if self._mode in (AppMode.LOCKED, AppMode.INTERACTION):
@@ -149,12 +177,25 @@ class DashboardBridge(QObject):
         if self._mode is AppMode.LAYOUT_EDIT:
             self.layoutCancelRequested.emit()
 
+    @Slot(int, int)
+    def beginWindowDrag(self, screen_x: int, screen_y: int) -> None:  # noqa: N802
+        if self._mode is AppMode.LAYOUT_EDIT:
+            self.windowDragRequested.emit(int(screen_x), int(screen_y))
+
     @Slot(str)
     def addQuickTodo(self, content: str) -> None:  # noqa: N802
         if not self._todo_commands_enabled():
             return
         assert self._todo_service is not None
         self._todo_service.add_quick(content)
+        self.publish_todos()
+
+    @Slot(str)
+    def addTodayTodo(self, content: str) -> None:  # noqa: N802
+        if not self._todo_commands_enabled():
+            return
+        assert self._todo_service is not None
+        self._todo_service.add_today(content)
         self.publish_todos()
 
     @Slot(int)
@@ -198,14 +239,35 @@ class DashboardBridge(QObject):
             self.weeklyTimetableRequested.emit()
             self.publish_timetable()
 
-    def publish_timetable(self, *, header_mode: str = "weekday_date") -> None:
+    def publish_timetable(self, *, header_mode: str | None = None) -> None:
         if self._timetable_service is None:
             return
+        selected_header_mode = header_mode or self._stored_header_mode()
         week = self._timetable_service.get_current_week(
             self._clock.today(),
-            header_mode=header_mode,
+            header_mode=selected_header_mode,
         )
-        self.timetableChanged.emit(present_timetable(week, header_mode=header_mode))
+        self.timetableChanged.emit(
+            present_timetable(week, header_mode=selected_header_mode)
+        )
+
+    def _stored_header_mode(self) -> str:
+        if self._settings_service is None:
+            return "weekday_date"
+        try:
+            value = self._settings_service.timetable_header_mode
+        except (AttributeError, TypeError, ValueError):
+            return "weekday_date"
+        return value if isinstance(value, str) and value else "weekday_date"
+
+    def _stored_language(self) -> str:
+        if self._settings_service is None:
+            return "zh_CN"
+        try:
+            value = self._settings_service.ui_language
+        except (AttributeError, TypeError, ValueError):
+            return "zh_CN"
+        return value if value in {"zh_CN", "en_US"} else "zh_CN"
 
     def publish_todos(self) -> None:
         if self._todo_service is None:
@@ -239,15 +301,23 @@ class DashboardBridge(QObject):
             profile=self._profile_payload(),
             weather_presenter=self._weather_presenter,
             weather_display_mode=self._weather_display_mode(),
+            finance_presenter=self._finance_presenter,
             network_status_service=self._network_status_service,
+            language=self._stored_language(),
         )
         self.stateChanged.emit(state)
         self.weatherChanged.emit(dict(state["weather"]))
+        self.financeChanged.emit(dict(state["finance"]))
         self.networkStatusChanged.emit(dict(state["networkStatus"]))
 
     def publish_weather(self) -> dict[str, object]:
         payload = self._weather_payload()
         self.weatherChanged.emit(payload)
+        return payload
+
+    def publish_finance(self) -> dict[str, object]:
+        payload = self._finance_payload()
+        self.financeChanged.emit(payload)
         return payload
 
     def publish_network_status(self) -> dict[str, object]:
@@ -273,6 +343,11 @@ class DashboardBridge(QObject):
             return {"state": "grey"}
         color = self._network_status_service.color
         return {"state": color if color in {"grey", "green", "red"} else "grey"}
+
+    def _finance_payload(self) -> dict[str, object]:
+        if self._finance_presenter is None:
+            return {}
+        return dict(self._finance_presenter.present())
 
     def _weather_display_mode(self) -> str | None:
         profile = self._profile_service.current_profile if self._profile_service else None

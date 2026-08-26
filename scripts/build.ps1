@@ -90,9 +90,11 @@ if ($SkipInstaller) {
 $isccCommand = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
 if (-not $isccCommand) {
     $knownIsccPaths = @(
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
         "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
         "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
     ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) }
+    $knownIsccPaths = @($knownIsccPaths)
     if ($knownIsccPaths.Count -gt 0) {
         $isccPath = $knownIsccPaths[0]
     }

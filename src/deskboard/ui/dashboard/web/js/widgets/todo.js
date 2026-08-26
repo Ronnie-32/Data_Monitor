@@ -1,3 +1,5 @@
+import { normalizeLanguage, translate } from "../i18n.js";
+
 function interactionEnabled() {
   return document.body.dataset.mode === "interaction";
 }
@@ -18,6 +20,18 @@ export function createTodoWidget(bridge) {
   let items = [];
   let contextTodo = null;
   let draggedId = null;
+  let language = "zh_CN";
+
+  function applyLanguage() {
+    const title = document.getElementById("todo-title");
+    if (title) title.textContent = translate("widget.todo", language);
+    addButton.setAttribute("aria-label", translate("todo.add", language));
+    addInput.placeholder = translate("todo.placeholder", language);
+    addInput.setAttribute("aria-label", translate("todo.content", language));
+    menu.querySelector('[data-action="edit"]').textContent = translate("menu.edit", language);
+    menu.querySelector('[data-action="toggle"]').textContent = translate("menu.incomplete", language);
+    menu.querySelector('[data-action="delete"]').textContent = translate("menu.delete", language);
+  }
 
   function closeMenu() {
     menu.classList.remove("is-open");
@@ -28,7 +42,7 @@ export function createTodoWidget(bridge) {
     items = Array.from(nextItems || []);
     list.replaceChildren();
     if (items.length === 0) {
-      list.append(textNode("li", "todo-empty", "暂无待办"));
+      list.append(textNode("li", "todo-empty", translate("todo.empty", language)));
       return;
     }
 
@@ -43,7 +57,10 @@ export function createTodoWidget(bridge) {
       checkbox.className = "todo-check";
       checkbox.checked = Boolean(todo.completed);
       checkbox.disabled = !interactionEnabled();
-      checkbox.setAttribute("aria-label", `切换待办：${todo.content}`);
+      checkbox.setAttribute(
+        "aria-label",
+        `${translate("todo.toggle", language)}: ${todo.content}`,
+      );
       checkbox.addEventListener("change", () => {
         if (interactionEnabled()) bridge.toggleTodo(todo.id);
       });
@@ -66,8 +83,8 @@ export function createTodoWidget(bridge) {
         event.preventDefault();
         contextTodo = todo;
         menu.querySelector('[data-action="toggle"]').textContent = todo.completed
-          ? "Mark incomplete"
-          : "Mark complete";
+          ? translate("menu.incomplete", language)
+          : translate("menu.complete", language);
         menu.style.left = `${event.clientX}px`;
         menu.style.top = `${event.clientY}px`;
         menu.classList.add("is-open");
@@ -132,5 +149,12 @@ export function createTodoWidget(bridge) {
     render(items);
   }
 
-  return { render, setMode };
+  function setLanguage(nextLanguage) {
+    language = normalizeLanguage(nextLanguage);
+    applyLanguage();
+    render(items);
+  }
+
+  applyLanguage();
+  return { render, setMode, setLanguage };
 }

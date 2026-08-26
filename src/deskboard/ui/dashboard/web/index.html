@@ -1,85 +1,126 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="mist_blue">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DeskBoard</title>
   <link rel="stylesheet" href="./vendor/gridstack/gridstack.min.css">
-  <link rel="stylesheet" href="./css/widgets.css">
+  <link rel="stylesheet" href="./css/base.css">
+  <link rel="stylesheet" href="./css/themes.css">
   <link rel="stylesheet" href="./css/layout.css">
+  <link rel="stylesheet" href="./css/widgets.css">
   <link rel="stylesheet" href="./css/timetable.css">
 </head>
 <body data-mode="interaction">
-  <div id="edit-dragbar">拖动此区域移动看板；四边和四角可缩放</div>
   <main class="dashboard-surface">
     <header class="shell-bar">
       <h1 class="shell-title">DeskBoard</h1>
-      <div id="mode" class="shell-mode">interaction</div>
+      <div id="mode" class="shell-mode">交互</div>
+      <div id="shell-drag-handle" class="shell-drag-handle" data-drag-region="true" aria-label="拖动看板"></div>
+      <div id="layout-toolbar" class="layout-toolbar" hidden>
+        <span class="layout-toolbar-title">布局编辑</span>
+        <span class="layout-toolbar-hint">拖卡片移动，拖边缘或角点调整大小</span>
+        <div class="layout-toolbar-actions">
+          <button id="layout-save" type="button">保存</button>
+          <button id="layout-cancel" type="button">取消</button>
+        </div>
+        <div id="layout-visibility-controls" class="layout-visibility-controls"></div>
+      </div>
       <div class="network-status" aria-label="网络状态">
         <span id="network-status-dot" class="status-dot" data-state="grey" aria-label="网络状态：检查中"></span>
       </div>
       <button id="settings" class="settings-button" type="button">打开设置</button>
     </header>
-    <div id="layout-toolbar" class="layout-toolbar" hidden>
-      <span class="layout-toolbar-title">布局编辑</span>
-      <button id="layout-save" type="button">保存</button>
-      <button id="layout-cancel" type="button">取消</button>
-      <div id="layout-visibility-controls" class="layout-visibility-controls"></div>
-    </div>
-    <section id="widgets-grid" class="widgets-grid grid-stack" aria-label="Dashboard widgets">
-      <article class="grid-stack-item" gs-x="1" gs-y="0" gs-w="5" gs-h="6" data-widget-key="todo">
+    <div id="widgets-grid-viewport" class="widgets-grid-viewport" aria-label="看板部件区域">
+      <section id="widgets-grid" class="widgets-grid grid-stack" aria-label="看板部件">
+      <article class="grid-stack-item" gs-x="0" gs-y="0" gs-w="24" gs-h="12" data-widget-key="todo">
         <div class="grid-stack-item-content">
           <section class="widget todo-widget" aria-labelledby="todo-title">
             <header class="widget-header">
-              <h2 id="todo-title" class="widget-title">Todo</h2>
+              <h2 id="todo-title" class="widget-title">待办</h2>
               <button id="todo-add" class="todo-add" type="button" aria-label="快速添加待办">+</button>
             </header>
             <form id="todo-add-form" class="todo-add-form">
               <input id="todo-add-input" class="todo-add-input" maxlength="500"
-                     autocomplete="off" placeholder="输入待办内容，按 Enter 保存" aria-label="待办内容">
+                     autocomplete="off" placeholder="输入待办内容，按回车保存" aria-label="待办内容">
             </form>
             <div class="todo-scroll"><ul id="todo-list" class="todo-list"></ul></div>
           </section>
         </div>
       </article>
-      <article class="grid-stack-item" gs-x="6" gs-y="0" gs-w="5" gs-h="6" data-widget-key="today_agenda">
+      <article class="grid-stack-item" gs-x="24" gs-y="0" gs-w="24" gs-h="12" data-widget-key="today_agenda">
         <div class="grid-stack-item-content">
-          <section class="widget agenda-widget" aria-labelledby="agenda-title">
+            <section class="widget agenda-widget" aria-labelledby="agenda-title">
             <header class="widget-header">
               <button id="agenda-title" class="widget-title widget-title-button" type="button">
-                Today Agenda
+                今日日程
               </button>
+              <button id="agenda-add" class="todo-add agenda-add" type="button"
+                      aria-label="添加今日日程">+</button>
             </header>
+            <form id="agenda-add-form" class="todo-add-form">
+              <input id="agenda-add-input" class="todo-add-input" maxlength="500"
+                     autocomplete="off" placeholder="输入今日日程，按回车保存" aria-label="今日日程内容">
+            </form>
             <div class="agenda-scroll">
-              <section class="agenda-section" aria-labelledby="agenda-timed-heading">
-                <h3 id="agenda-timed-heading" class="agenda-section-title">定时事项</h3>
-                <ul id="agenda-timed-list" class="agenda-list"></ul>
-              </section>
-              <section class="agenda-section" aria-labelledby="agenda-date-only-heading">
-                <h3 id="agenda-date-only-heading" class="agenda-section-title">Today Items</h3>
-                <ul id="agenda-date-only-list" class="agenda-list"></ul>
+              <section class="agenda-section" aria-labelledby="agenda-heading">
+                <h3 id="agenda-heading" class="agenda-section-title">今日事项</h3>
+                <ul id="agenda-list" class="agenda-list"></ul>
               </section>
             </div>
           </section>
         </div>
       </article>
-      <article class="grid-stack-item" gs-x="1" gs-y="6" gs-w="10" gs-h="3" data-widget-key="weather">
+      <article class="grid-stack-item" gs-x="0" gs-y="12" gs-w="48" gs-h="3" data-widget-key="weather">
         <div class="grid-stack-item-content">
-          <section class="widget weather-widget" aria-labelledby="weather-title">
-            <header class="widget-header">
-              <h2 id="weather-title" class="widget-title">Weather</h2>
-              <span id="weather-mode" class="weather-mode">单城市详情</span>
-            </header>
+          <section class="widget weather-widget info-widget" aria-label="天气数据">
             <div id="weather-cities" class="weather-cities"></div>
           </section>
         </div>
       </article>
-    </section>
+      <article class="grid-stack-item" gs-x="0" gs-y="15" gs-w="12" gs-h="3" data-widget-key="gold">
+        <div class="grid-stack-item-content">
+          <section class="widget finance-widget info-widget" data-finance-category="gold" aria-label="黄金数据">
+            <div class="finance-items"></div>
+          </section>
+        </div>
+      </article>
+      <article class="grid-stack-item" gs-x="12" gs-y="15" gs-w="12" gs-h="3" data-widget-key="fx">
+        <div class="grid-stack-item-content">
+          <section class="widget finance-widget info-widget" data-finance-category="fx" aria-label="汇率数据">
+            <div class="finance-items"></div>
+          </section>
+        </div>
+      </article>
+      <article class="grid-stack-item" gs-x="24" gs-y="15" gs-w="12" gs-h="3" data-widget-key="china_indices">
+        <div class="grid-stack-item-content">
+          <section class="widget finance-widget info-widget" data-finance-category="china_indices" aria-label="A 股指数数据">
+            <div class="finance-items"></div>
+          </section>
+        </div>
+      </article>
+      <article class="grid-stack-item" gs-x="36" gs-y="15" gs-w="12" gs-h="3" data-widget-key="us_indices">
+        <div class="grid-stack-item-content">
+          <section class="widget finance-widget info-widget" data-finance-category="us_indices" aria-label="美国指数数据">
+            <div class="finance-items"></div>
+          </section>
+        </div>
+      </article>
+      <article class="grid-stack-item layout-item-hidden" gs-x="0" gs-y="18" gs-w="48" gs-h="3"
+               data-widget-key="finance_overview" aria-hidden="true">
+        <div class="grid-stack-item-content">
+          <section class="widget finance-widget info-widget" data-finance-category="overview" aria-label="金融数据总览">
+            <div class="finance-items"></div>
+          </section>
+        </div>
+      </article>
+      </section>
+    </div>
   </main>
   <div id="timetable-overlay" class="timetable-overlay" hidden aria-hidden="true">
     <section class="timetable-dialog" role="dialog" aria-labelledby="timetable-title">
       <header class="timetable-toolbar">
-        <h2 id="timetable-title" class="timetable-title">Weekly Timetable</h2>
+        <h2 id="timetable-title" class="timetable-title">每周课表</h2>
         <span id="timetable-week-label" class="timetable-week-label"></span>
         <button id="timetable-close" class="timetable-close" type="button">关闭</button>
       </header>
@@ -99,9 +140,9 @@
     </section>
   </div>
   <div id="todo-context-menu" class="todo-context-menu" role="menu">
-    <button type="button" data-action="edit">Edit details</button>
-    <button type="button" data-action="toggle">Mark incomplete</button>
-    <button type="button" data-action="delete">Delete</button>
+    <button type="button" data-action="edit">编辑详情</button>
+    <button type="button" data-action="toggle">标记未完成</button>
+    <button type="button" data-action="delete">删除</button>
   </div>
   <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
   <script src="./vendor/gridstack/gridstack-all.js"></script>

@@ -6,6 +6,60 @@ from dataclasses import dataclass
 from datetime import date, datetime, time
 from typing import Literal
 
+TimetableSchemeAxisMode = Literal["custom_periods", "uniform_day"]
+
+DEFAULT_TIMETABLE_SCHEME_NAME = "方案1"
+
+# ``datetime.time`` cannot represent 24:00.  This sentinel keeps comparisons
+# and arithmetic monotonic while the persistence/presentation helpers render
+# it as the user-facing ``24:00`` value.
+END_OF_DAY = time(23, 59, 59, 999999)
+
+
+@dataclass(frozen=True, slots=True)
+class TimetableSchemePeriod:
+    period_no: int
+    start_time: time
+    end_time: time
+
+    @property
+    def start(self) -> time:
+        return self.start_time
+
+    @property
+    def end(self) -> time:
+        return self.end_time
+
+
+@dataclass(frozen=True, slots=True)
+class TimetableScheme:
+    id: int
+    name: str
+    axis_mode: TimetableSchemeAxisMode
+    period_count: int
+    day_start: time | None
+    day_end: time | None
+    is_builtin: bool
+    periods: tuple[TimetableSchemePeriod, ...]
+    created_at: datetime
+    updated_at: datetime
+
+    @property
+    def visible_start(self) -> time | None:
+        if self.axis_mode == "custom_periods":
+            return self.periods[0].start_time if self.periods else None
+        return self.day_start
+
+    @property
+    def visible_end(self) -> time | None:
+        if self.axis_mode == "custom_periods":
+            return self.periods[-1].end_time if self.periods else None
+        return self.day_end
+
+    @property
+    def guide_count(self) -> int:
+        return self.period_count
+
 
 @dataclass(frozen=True, slots=True)
 class Semester:
@@ -16,6 +70,7 @@ class Semester:
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    timetable_scheme_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

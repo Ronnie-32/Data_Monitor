@@ -70,13 +70,13 @@ def test_layout_commands_are_mode_gated_and_emit_one_save_cancel_request():
 
     bridge.publish_mode(AppMode.LOCKED)
     bridge.enterLayoutEdit()
-    bridge.saveLayout({"columnCount": 12, "widgets": []})
+    bridge.saveLayout({"columnCount": 48, "widgets": []})
     bridge.cancelLayoutEdit()
 
     bridge.publish_mode(AppMode.INTERACTION)
     bridge.enterLayoutEdit()
     bridge.publish_mode(AppMode.LAYOUT_EDIT)
-    payload = {"columnCount": 12, "widgets": [{"widgetKey": "todo", "x": 1}]}
+    payload = {"columnCount": 48, "widgets": [{"widgetKey": "todo", "x": 1}]}
     bridge.saveLayout(payload)
     bridge.cancelLayoutEdit()
 
@@ -96,7 +96,7 @@ def test_profile_changed_event_is_dashboard_owned_and_serializable():
         )
     )
 
-    assert events[0]["columnCount"] == 12
+    assert events[0]["columnCount"] == 48
     assert events[0]["widgets"][0]["widgetKey"] == "todo"
 
 
@@ -111,54 +111,150 @@ def test_web_layout_contract_uses_local_gridstack_and_defers_persistence_until_s
     assert "id=\"layout-toolbar\"" in html
     assert "saveLayout" in layout
     assert "cancelLayoutEdit" in layout
-    assert "column: 12" in layout
+    assert "column: GRID_COLUMNS" in layout
     assert "createLayoutController" in app
     assert "grid.on(\"change\"" in layout
     assert "profileChanged" in app
 
 
-def test_grid_layout_clamps_items_to_board_edges_with_small_horizontal_gap():
+def test_grid_layout_preserves_free_space_and_keeps_items_visible_with_explicit_gaps():
     web_root = Path("src/deskboard/ui/dashboard/web")
     layout = (web_root / "js/layout.js").read_text(encoding="utf-8")
     css = (web_root / "css/layout.css").read_text(encoding="utf-8")
 
     assert "LAYOUT_EDGE_PADDING_PX = 0" in layout
-    assert "computeMaxRows" in layout
+    assert "LAYOUT_VERTICAL_GAP_PX = 2" in layout
+    assert "float: true" in layout
+    assert "push: true" in layout
+    assert "alwaysShowResizeHandle: true" in layout
+    assert 'handles: "n,e,s,w,ne,se,sw,nw"' in layout
+    assert "WIDGET_LABELS" in layout
+    assert "maxRow: 0" in layout
+    assert 'grid.on("dragstop"' in layout
+    assert 'grid.on("resizestop"' in layout
+    assert "repairOverlappingNodes" in layout
+    assert "grid.compact" not in layout
+    assert "x: moving.x" in layout
+    assert "y: Math.max(moving.y, anchor.y + anchor.h)" in layout
+    assert "computePreferredCellHeight" in layout
     assert "clampGridItemToBoard" in layout
-    assert "grid.engine.maxRow" in layout
-    assert "--gs-item-margin-top: 0px" in css
-    assert "--gs-item-margin-bottom: 0px" in css
-    assert "--gs-item-margin-left: 4px" in css
-    assert "--gs-item-margin-right: 4px" in css
+    assert "--gs-item-margin-top: 2px" in css
+    assert "--gs-item-margin-bottom: 2px" in css
+    assert "--gs-item-margin-left: 2px" in css
+    assert "--gs-item-margin-right: 2px" in css
+    assert "overflow: auto" in css
 
 
-def test_default_layout_uses_a_small_horizontal_region_gap():
+def test_widget_content_does_not_silently_truncate_information_rows():
+    web_root = Path("src/deskboard/ui/dashboard/web")
+    css = (web_root / "css/layout.css").read_text(encoding="utf-8")
+    widgets = (web_root / "css/widgets.css").read_text(encoding="utf-8")
+    base = (web_root / "css/base.css").read_text(encoding="utf-8")
+    layout = (web_root / "js/layout.js").read_text(encoding="utf-8")
+    weather = (web_root / "js/widgets/weather.js").read_text(encoding="utf-8")
+    finance = (web_root / "js/widgets/finance.js").read_text(encoding="utf-8")
+
+    assert ".grid-stack > .grid-stack-item > .grid-stack-item-content" in css
+    assert "overflow: hidden" in css
+    assert ".info-widget .weather-cities" in widgets
+    assert ".info-widget .finance-items" in widgets
+    assert "overflow: hidden" in widgets
+    assert "cities.slice" not in weather
+    assert "filtered.slice" not in finance
+    assert "fitInformationWidgets" in layout
+    assert "scrollHeight" in layout
+    assert "@container (min-width: 480px)" in widgets
+    assert "@container (max-width: 240px)" in widgets
+    assert "grid-template-columns: minmax(0, 1fr) auto" in widgets
+    assert "max-width: 55%" not in widgets
+    assert 'font-family: "Segoe UI Variable Text"' in base
+
+
+def test_default_layout_uses_full_width_regions_and_vertical_spacing():
     web_root = Path("src/deskboard/ui/dashboard/web")
     html = (web_root / "index.html").read_text(encoding="utf-8")
     layout = (web_root / "js/layout.js").read_text(encoding="utf-8")
     css = (web_root / "css/layout.css").read_text(encoding="utf-8")
 
-    assert "LAYOUT_HORIZONTAL_GAP_PX = 4" in layout
-    assert "--gs-item-margin-left: 4px" in css
-    assert "--gs-item-margin-right: 4px" in css
-    assert 'gs-x="1" gs-y="0" gs-w="5"' in html
-    assert 'gs-x="6" gs-y="0" gs-w="5"' in html
+    assert "LAYOUT_HORIZONTAL_GAP_PX = 2" in layout
+    assert "--gs-item-margin-left: 2px" in css
+    assert "--gs-item-margin-right: 2px" in css
+    assert 'gs-x="0" gs-y="0" gs-w="24"' in html
+    assert 'gs-x="24" gs-y="0" gs-w="24"' in html
+    assert 'gs-x="0" gs-y="12" gs-w="48"' in html
+    assert 'data-widget-key="finance_overview"' in html
+    assert "layout-item-hidden" in html
+    assert 'gs-x="0" gs-y="18" gs-w="48" gs-h="3"' in html
 
 
-def test_grid_layout_cell_height_fills_board_without_fractional_row_remainder():
+def test_grid_layout_cell_height_is_not_shrunk_to_fit_the_viewport():
     layout = Path("src/deskboard/ui/dashboard/web/js/layout.js").read_text(encoding="utf-8")
 
-    assert "computeGridMetrics" in layout
-    assert "cellHeight: height / maxRows" in layout
-    assert "updateGridBounds(metrics.maxRows)" in layout
+    assert "computePreferredCellHeight" in layout
+    assert "MAX_CELL_HEIGHT_PX" in layout
+    assert "gridElement.clientHeight" not in layout
+    assert "grid.engine.maxRow = 0" in layout
+    assert "updateGridBounds()" in layout
 
 
-def test_outer_board_resize_preserves_required_rows_while_recomputing_pixels():
+def test_outer_board_resize_recomputes_pixels_without_reflowing_or_compressing_rows():
     layout = Path("src/deskboard/ui/dashboard/web/js/layout.js").read_text(encoding="utf-8")
 
-    assert "requiredRows = 1" in layout
-    assert "Math.max(naturalRows, requiredRows)" in layout
-    assert "boardRowCount" in layout
+    assert "computePreferredCellHeight" in layout
+    assert "grid.cellHeight(cellHeight)" in layout
+    assert "boardRowCount" not in layout
+
+
+def test_grid_editor_uses_stable_rows_and_a_scrollable_viewport_for_vertical_resize():
+    web_root = Path("src/deskboard/ui/dashboard/web")
+    html = (web_root / "index.html").read_text(encoding="utf-8")
+    css = (web_root / "css/layout.css").read_text(encoding="utf-8")
+    layout = (web_root / "js/layout.js").read_text(encoding="utf-8")
+    widgets = (web_root / "css/widgets.css").read_text(encoding="utf-8")
+
+    assert 'id="widgets-grid-viewport"' in html
+    assert ".widgets-grid-viewport" in css
+    assert "overflow: auto" in css
+    assert "height: auto" in css
+    assert "max-height: none" in css
+    assert "float: true" in layout
+    assert "MAX_CELL_HEIGHT_PX" in layout
+    assert "gridElement.clientHeight" not in layout
+    assert ".grid-stack > .grid-stack-item" in css
+    assert "min-height: 0" in css
+    assert "min-height: 0" in widgets
+
+
+def test_dashboard_viewport_is_content_sized_and_hidden_widgets_do_not_extend_board():
+    web_root = Path("src/deskboard/ui/dashboard/web")
+    css = (web_root / "css/layout.css").read_text(encoding="utf-8")
+    layout = (web_root / "js/layout.js").read_text(encoding="utf-8")
+
+    assert "flex: 0 1 auto" in css
+    assert "scrollbar-gutter: stable" not in css
+    assert "display: none !important" in css
+    assert "syncVisibleGridHeight" in layout
+    assert "visibleNodes" in layout
+
+
+def test_default_layout_uses_finer_rows_and_bounded_information_growth():
+    web_root = Path("src/deskboard/ui/dashboard/web")
+    html = (web_root / "index.html").read_text(encoding="utf-8")
+    layout = (web_root / "js/layout.js").read_text(encoding="utf-8")
+    widgets = (web_root / "css/widgets.css").read_text(encoding="utf-8")
+
+    assert "GRID_COLUMNS = 48" in layout
+    assert "MIN_CELL_HEIGHT_PX = 20" in layout
+    assert "MAX_CELL_HEIGHT_PX = 32" in layout
+    assert "MAX_INFO_WIDGET_ROWS = 3" in layout
+    assert 'gs-x="0" gs-y="0" gs-w="24" gs-h="12"' in html
+    assert 'gs-x="24" gs-y="0" gs-w="24" gs-h="12"' in html
+    assert 'gs-x="0" gs-y="12" gs-w="48" gs-h="3"' in html
+    assert 'gs-x="0" gs-y="15" gs-w="12" gs-h="3"' in html
+    assert 'gs-x="12" gs-y="15" gs-w="12" gs-h="3"' in html
+    assert 'gs-x="24" gs-y="15" gs-w="12" gs-h="3"' in html
+    assert 'gs-x="36" gs-y="15" gs-w="12" gs-h="3"' in html
+    assert "overflow-y: auto" in widgets
 
 
 def test_real_qwebchannel_invokes_layout_save_slot():
@@ -178,8 +274,8 @@ def test_real_qwebchannel_invokes_layout_save_slot():
     <script>
       new QWebChannel(qt.webChannelTransport, function (channel) {
         channel.objects.bridge.saveLayout({
-          columnCount: 12,
-          widgets: [{widgetKey: "todo", x: 1, y: 2, w: 6, h: 5}]
+          columnCount: 48,
+          widgets: [{widgetKey: "todo", x: 4, y: 8, w: 24, h: 20}]
         });
       });
     </script></body></html>
@@ -191,7 +287,7 @@ def test_real_qwebchannel_invokes_layout_save_slot():
     loop.exec()
 
     assert saved == [
-        {"columnCount": 12, "widgets": [{"widgetKey": "todo", "x": 1, "y": 2, "w": 6, "h": 5}]}
+        {"columnCount": 48, "widgets": [{"widgetKey": "todo", "x": 4, "y": 8, "w": 24, "h": 20}]}
     ]
     view.deleteLater()
     del app
@@ -201,10 +297,10 @@ def test_dashboard_window_save_and_cancel_restore_the_recorded_daily_mode():
     app = QApplication.instance() or QApplication([])
     profile_service = FakeProfileService(builtin=False)
     window = DashboardWindow(profile_service=profile_service, clock=FakeClock())
-    window.setGeometry(10, 20, 600, 400)
+    window.setGeometry(10, 20, 960, 720)
     window.set_mode(AppMode.LOCKED)
     window.set_mode(AppMode.LAYOUT_EDIT)
-    window.setGeometry(40, 50, 800, 500)
+    window.setGeometry(40, 50, 1100, 800)
     window.bridge.cancelLayoutEdit()
 
     assert window.mode is AppMode.LOCKED
@@ -217,31 +313,31 @@ def test_dashboard_window_save_and_cancel_restore_the_recorded_daily_mode():
     assert geometry == (
         10,
         20,
-        600,
-        400,
+        960,
+        720,
     )
     assert profile_service.saved == []
 
     window.set_mode(AppMode.LAYOUT_EDIT)
     window.bridge.saveLayout(
         {
-            "columnCount": 12,
+            "columnCount": 48,
             "widgets": [
-                {"widgetKey": "todo", "visible": True, "x": 1, "y": 1, "w": 5, "h": 5},
+                {"widgetKey": "todo", "visible": True, "x": 4, "y": 4, "w": 20, "h": 20},
                 {
                     "widgetKey": "today_agenda",
                     "visible": True,
-                    "x": 6,
-                    "y": 1,
-                    "w": 6,
-                    "h": 5,
+                    "x": 24,
+                    "y": 4,
+                    "w": 24,
+                    "h": 20,
                 },
             ],
         }
     )
 
     assert window.mode is AppMode.LOCKED
-    assert profile_service.saved[0].widgets[0].x == 1
+    assert profile_service.saved[0].widgets[0].x == 4
     window.close()
     del app
 
@@ -259,8 +355,8 @@ def test_default_save_uses_native_save_as_and_dismiss_keeps_edit_open(monkeypatc
     )
     window.bridge.saveLayout(
         {
-            "columnCount": 12,
-            "widgets": [{"widgetKey": "todo", "visible": True, "x": 0, "y": 0, "w": 6, "h": 6}],
+            "columnCount": 48,
+            "widgets": [{"widgetKey": "todo", "visible": True, "x": 0, "y": 0, "w": 24, "h": 24}],
         }
     )
 
@@ -281,7 +377,7 @@ def test_default_save_uses_native_save_as_and_dismiss_keeps_edit_open(monkeypatc
         staticmethod(lambda *_args, **_kwargs: ("", False)),
     )
     dismissed_window.bridge.saveLayout(
-        {"columnCount": 12, "widgets": [{"widgetKey": "todo", "x": 0, "y": 0, "w": 6, "h": 6}]}
+        {"columnCount": 48, "widgets": [{"widgetKey": "todo", "x": 0, "y": 0, "w": 24, "h": 24}]}
     )
 
     assert dismissed_window.mode is AppMode.LAYOUT_EDIT
@@ -314,7 +410,7 @@ def test_dashboard_web_page_loads_local_gridstack_layout_shell():
     QTimer.singleShot(5000, evaluate_loop.quit)
     evaluate_loop.exec()
 
-    assert values == ['{"grid":"function","items":3,"toolbar":true}']
+    assert values == ['{"grid":"function","items":8,"toolbar":true}']
     window.close()
     del app
 

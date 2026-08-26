@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from deskboard.infrastructure.clock import Clock
 from deskboard.models.profile import (
     DEFAULT_PROFILE_NAME,
     MAX_USER_PROFILES,
+    PROFILE_FONT_KEYS,
     PROFILE_THEME_KEYS,
     Profile,
     ProfileState,
@@ -14,6 +17,7 @@ from deskboard.repositories.profile_repository import ProfileRepository
 from deskboard.repositories.settings_repository import SettingsRepository
 
 ACTIVE_PROFILE_SETTING = "active_profile_id"
+PROFILE_ONE_NAMES = frozenset({"1", "方案1", "1方案", "方案一", "一方案", "profile1"})
 
 
 class ProfileError(ValueError):
@@ -40,6 +44,7 @@ class ProfileService:
         self._settings = settings_repository or SettingsRepository(repository.connection)
         default = self._repository.ensure_default(ProfileState(), self._clock.now())
         self._active_profile_id = self._load_active_profile_id(default.id)
+        self._restore_default_from_profile_one(default.id)
 
     @property
     def active_profile_id(self) -> int:
@@ -116,6 +121,14 @@ class ProfileService:
     def list_supported_themes() -> tuple[str, ...]:
         return PROFILE_THEME_KEYS
 
+    @staticmethod
+    def supported_fonts() -> tuple[str, ...]:
+        return PROFILE_FONT_KEYS
+
+    @staticmethod
+    def list_supported_fonts() -> tuple[str, ...]:
+        return PROFILE_FONT_KEYS
+
     def _ensure_user_capacity(self) -> None:
         user_count = sum(not profile.is_builtin for profile in self._repository.list_profiles())
         if user_count >= MAX_USER_PROFILES:
@@ -152,3 +165,40 @@ class ProfileService:
         self._repository.require(profile_id)
         self._active_profile_id = profile_id
         self._settings.set(ACTIVE_PROFILE_SETTING, str(profile_id))
+
+    def _restore_default_from_profile_one(self, default_id: int) -> None:
+        """Synchronize Default's Dashboard layout from the user's Profile 1.
+
+        Default remains a protected built-in Profile; this startup repair only
+        replaces its window/widget layout so an incomplete template cannot hide
+        widgets or use stale geometry. Default's appearance remains untouched;
+        the source Profile is never modified and remains editable.
+        """
+
+        candidates = [
+            profile
+            for profile in self._repository.list_profiles()
+            if not profile.is_builtin and _is_profile_one_name(profile.name)
+        ]
+        if not candidates:
+            return
+        source = next(
+            (profile for profile in candidates if profile.id == self._active_profile_id),
+            candidates[0],
+        )
+        default = self._repository.require(default_id)
+        restored_state = replace(
+            default.state,
+            window_x=source.state.window_x,
+            window_y=source.state.window_y,
+            window_width=source.state.window_width,
+            window_height=source.state.window_height,
+            widgets=source.state.widgets,
+        )
+        if default.state != restored_state:
+            self._repository.save_state(default.id, restored_state, self._clock.now())
+
+
+def _is_profile_one_name(name: str) -> bool:
+    normalized = "".join(name.casefold().split())
+    return normalized in PROFILE_ONE_NAMES

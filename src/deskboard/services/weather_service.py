@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from deskboard.models.weather import DEFAULT_WEATHER_CITIES, WeatherCity
+from deskboard.models.weather import (
+    DEFAULT_WEATHER_CITIES,
+    WeatherCity,
+    resolve_weather_source_city_id,
+)
 from deskboard.repositories.weather_repository import WeatherRepository
 
 
@@ -28,6 +32,21 @@ class WeatherService:
 
     def get_city(self, city_key: str) -> WeatherCity | None:
         return self._repository.get_city(city_key)
+
+    def get_city_by_source_city_id(self, source_city_id: str) -> WeatherCity | None:
+        """Find an already configured city after resolving friendly source aliases."""
+
+        normalized_source_id = resolve_weather_source_city_id(source_city_id)
+        return next(
+            (
+                city
+                for city in self.list_cities()
+                if resolve_weather_source_city_id(city.source_city_id) == normalized_source_id
+            ),
+            None,
+        )
+
+    find_by_source_city_id = get_city_by_source_city_id
 
     def require_city(self, city_key: str) -> WeatherCity:
         return self._repository.require_city(city_key)
@@ -54,7 +73,7 @@ class WeatherService:
         return self._repository.create_city(
             city_key=city_key,
             display_name=display_name,
-            source_city_id=source_city_id,
+            source_city_id=resolve_weather_source_city_id(source_city_id),
             display_order=display_order,
             is_primary=is_primary,
         )
@@ -69,6 +88,8 @@ class WeatherService:
         source_city_id: str | None = None,
         display_order: int | None = None,
     ) -> WeatherCity:
+        if source_city_id is not None:
+            source_city_id = resolve_weather_source_city_id(source_city_id)
         return self._repository.update_city(
             city_key,
             display_name=display_name,

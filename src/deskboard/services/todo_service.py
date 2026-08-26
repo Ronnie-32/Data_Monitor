@@ -21,6 +21,14 @@ class TodoService:
             now=self._clock.now(),
         )
 
+    def add_today(self, content: str) -> Todo:
+        return self._repository.create(
+            content=_content(content),
+            planned_date=self._clock.today(),
+            display_order=self._repository.top_display_order(),
+            now=self._clock.now(),
+        )
+
     def get(self, todo_id: int) -> Todo:
         return self._repository.require(todo_id)
 

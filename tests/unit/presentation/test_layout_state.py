@@ -26,7 +26,7 @@ def sample_state() -> ProfileState:
     )
 
 
-def test_layout_round_trip_keeps_fixed_12_column_topology_when_window_resizes():
+def test_layout_round_trip_keeps_fixed_48_column_topology_when_window_resizes():
     original = sample_state()
     saved = serialize_layout(original)
 
@@ -43,10 +43,49 @@ def test_layout_round_trip_keeps_fixed_12_column_topology_when_window_resizes():
     ) == (100, 120, 1280, 800)
 
 
-def test_runtime_default_widgets_are_narrower_and_centered_with_room_between_them():
+def test_runtime_default_layout_contains_all_widgets_without_overlap():
     state = default_layout_state(ProfileState())
 
-    assert [(widget.x, widget.w) for widget in state.widgets] == [(1, 5), (6, 5), (1, 10)]
+    assert [widget.widget_key for widget in state.widgets] == [
+        "todo",
+        "today_agenda",
+        "weather",
+        "gold",
+        "fx",
+        "china_indices",
+        "us_indices",
+        "finance_overview",
+    ]
+    assert [(widget.x, widget.y, widget.w, widget.h) for widget in state.widgets] == [
+        (0, 0, 24, 12),
+        (24, 0, 24, 12),
+        (0, 12, 48, 3),
+        (0, 15, 12, 3),
+        (12, 15, 12, 3),
+        (24, 15, 12, 3),
+        (36, 15, 12, 3),
+        (0, 18, 48, 3),
+    ]
+    assert state.widgets[-1].visible is False
+
+
+def test_runtime_default_layout_adds_missing_widgets_below_existing_profile_content():
+    state = default_layout_state(
+        ProfileState(widgets=(ProfileWidgetState("todo", True, 0, 0, 48, 32),))
+    )
+
+    assert state.widgets[0] == ProfileWidgetState("todo", True, 0, 0, 48, 32)
+    assert all(widget.y >= 32 for widget in state.widgets[1:])
+    assert {widget.widget_key for widget in state.widgets} == {
+        "todo",
+        "today_agenda",
+        "weather",
+        "gold",
+        "fx",
+        "china_indices",
+        "us_indices",
+        "finance_overview",
+    }
 
 
 def test_profile_presentation_contains_only_dashboard_owned_layout_fields():
@@ -62,7 +101,7 @@ def test_profile_presentation_contains_only_dashboard_owned_layout_fields():
     assert profile["id"] == 3
     assert profile["name"] == "Study"
     assert profile["isBuiltin"] is False
-    assert profile["columnCount"] == 12
+    assert profile["columnCount"] == 48
     assert profile["widgets"][0] == {
         "widgetKey": "todo",
         "visible": True,
@@ -74,3 +113,20 @@ def test_profile_presentation_contains_only_dashboard_owned_layout_fields():
     }
     assert "createdAt" not in profile
     assert "updatedAt" not in profile
+
+
+def test_legacy_12_column_layout_is_scaled_to_the_48_column_topology():
+    state = profile_state_from_layout(
+        ProfileState(),
+        {
+            "columnCount": 12,
+            "widgets": [
+                {"widgetKey": "todo", "x": 1, "y": 2, "w": 5, "h": 3},
+            ],
+        },
+    )
+
+    assert state.widgets[0].x == 4
+    assert state.widgets[0].y == 8
+    assert state.widgets[0].w == 20
+    assert state.widgets[0].h == 12

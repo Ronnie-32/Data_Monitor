@@ -26,6 +26,7 @@ class WorkerExecutor(Protocol):
 class WorkerSignals(QObject):
     result = Signal(object)
     error = Signal(object)
+    finished = Signal()
 
 
 class _FunctionRunnable(QRunnable):
@@ -40,6 +41,8 @@ class _FunctionRunnable(QRunnable):
             self.signals.result.emit(self.job())
         except BaseException as error:  # noqa: BLE001 - propagate provider failures
             self.signals.error.emit(error)
+        finally:
+            self.signals.finished.emit()
 
 
 class QtThreadPoolExecutor:
@@ -47,6 +50,7 @@ class QtThreadPoolExecutor:
 
     def __init__(self, pool: QThreadPool | None = None) -> None:
         self._pool = pool or QThreadPool.globalInstance()
+        self._runnables: dict[int, _FunctionRunnable] = {}
 
     @property
     def pool(self) -> QThreadPool:
@@ -59,10 +63,24 @@ class QtThreadPoolExecutor:
         on_error: Callable[[BaseException], None],
     ) -> _FunctionRunnable:
         runnable = _FunctionRunnable(job)
+        runnable.setAutoDelete(False)
         runnable.signals.result.connect(on_success, Qt.ConnectionType.QueuedConnection)
         runnable.signals.error.connect(on_error, Qt.ConnectionType.QueuedConnection)
-        self._pool.start(runnable)
+        runnable_id = id(runnable)
+        self._runnables[runnable_id] = runnable
+        runnable.signals.finished.connect(
+            lambda selected_id=runnable_id: self._release(selected_id),
+            Qt.ConnectionType.QueuedConnection,
+        )
+        try:
+            self._pool.start(runnable)
+        except BaseException:
+            self._runnables.pop(runnable_id, None)
+            raise
         return runnable
+
+    def _release(self, runnable_id: int) -> None:
+        self._runnables.pop(runnable_id, None)
 
 
 class SynchronousWorkerExecutor:
@@ -84,4 +102,3 @@ class SynchronousWorkerExecutor:
 # Descriptive aliases for callers that name the implementation by its Qt type.
 QThreadPoolWorkerExecutor = QtThreadPoolExecutor
 ThreadPoolWorkerExecutor = QtThreadPoolExecutor
-

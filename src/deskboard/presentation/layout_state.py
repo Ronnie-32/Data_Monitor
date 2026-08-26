@@ -3,16 +3,32 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from datetime import datetime
 
 from deskboard.models.profile import (
+    LEGACY_PROFILE_GRID_COLUMNS,
     PROFILE_GRID_COLUMNS,
+    PROFILE_GRID_SCALE,
     PROFILE_WIDGET_KEYS,
     ProfileState,
     ProfileWidgetState,
 )
 
 GRID_COLUMN_COUNT = PROFILE_GRID_COLUMNS
+
+_DEFAULT_WIDGET_LAYOUT = (
+    ProfileWidgetState("todo", True, 0, 0, 24, 12),
+    ProfileWidgetState("today_agenda", True, 24, 0, 24, 12),
+    ProfileWidgetState("weather", True, 0, 12, 48, 3),
+    ProfileWidgetState("gold", True, 0, 15, 12, 3),
+    ProfileWidgetState("fx", True, 12, 15, 12, 3),
+    ProfileWidgetState("china_indices", True, 24, 15, 12, 3),
+    ProfileWidgetState("us_indices", True, 36, 15, 12, 3),
+    # The category cards already cover the enabled finance items. Keep the
+    # combined view available in Layout Edit, but do not repeat it by default.
+    ProfileWidgetState("finance_overview", False, 0, 18, 48, 3),
+)
 
 
 class LayoutStateError(ValueError):
@@ -49,6 +65,7 @@ def present_profile_state(
             "name": name,
             "isBuiltin": is_builtin,
             "themeKey": state.theme_key,
+            "fontKey": state.font_key,
             "panelOpacity": state.panel_opacity,
         }
     )
@@ -82,8 +99,9 @@ def profile_state_from_layout(
     if not isinstance(layout, Mapping):
         raise TypeError("layout must be a mapping")
     column_count = layout.get("columnCount", GRID_COLUMN_COUNT)
-    if column_count != GRID_COLUMN_COUNT:
-        raise LayoutStateError("Dashboard layout must use exactly 12 columns")
+    if column_count not in (LEGACY_PROFILE_GRID_COLUMNS, GRID_COLUMN_COUNT):
+        raise LayoutStateError("Dashboard layout must use exactly 48 columns")
+    scale = PROFILE_GRID_SCALE if column_count == LEGACY_PROFILE_GRID_COLUMNS else 1
 
     raw_widgets = layout.get("widgets")
     if not isinstance(raw_widgets, Sequence) or isinstance(raw_widgets, (str, bytes)):
@@ -105,10 +123,10 @@ def profile_state_from_layout(
             visible = raw_widget.get("visible", previous.visible if previous else True)
             if type(visible) is not bool:
                 raise TypeError("visible must be a bool")
-            x = _layout_int(raw_widget.get("x", previous.x if previous else 0), "x")
-            y = _layout_int(raw_widget.get("y", previous.y if previous else 0), "y")
-            w = _layout_int(raw_widget.get("w", previous.w if previous else 1), "w")
-            h = _layout_int(raw_widget.get("h", previous.h if previous else 1), "h")
+            x = _scaled_layout_int(raw_widget, "x", previous.x if previous else 0, scale)
+            y = _scaled_layout_int(raw_widget, "y", previous.y if previous else 0, scale)
+            w = _scaled_layout_int(raw_widget, "w", previous.w if previous else 1, scale)
+            h = _scaled_layout_int(raw_widget, "h", previous.h if previous else 1, scale)
             config = raw_widget.get("config", previous.config if previous else {})
             widgets.append(
                 ProfileWidgetState(
@@ -139,6 +157,7 @@ def profile_state_from_layout(
         window_width=window_values[2],
         window_height=window_values[3],
         theme_key=base_state.theme_key,
+        font_key=base_state.font_key,
         panel_opacity=base_state.panel_opacity,
         widgets=tuple(widgets),
     )
@@ -148,31 +167,45 @@ def default_layout_state(base_state: ProfileState | None = None) -> ProfileState
     """Return runtime defaults for the current Dashboard widget shell."""
 
     base = base_state or ProfileState()
-    if base.widgets:
-        if any(widget.widget_key == "weather" for widget in base.widgets):
-            return base
-        return ProfileState(
-            window_x=base.window_x,
-            window_y=base.window_y,
-            window_width=base.window_width,
-            window_height=base.window_height,
-            theme_key=base.theme_key,
-            panel_opacity=base.panel_opacity,
-            widgets=base.widgets + (ProfileWidgetState("weather", True, 1, 6, 10, 3),),
-        )
+    widgets = list(base.widgets)
+    existing_keys = {widget.widget_key for widget in widgets}
+    for default_widget in _DEFAULT_WIDGET_LAYOUT:
+        if default_widget.widget_key in existing_keys:
+            continue
+        placed = default_widget
+        while any(_widgets_overlap(placed, widget) for widget in widgets):
+            placed = replace(placed, y=placed.y + 1)
+        widgets.append(placed)
+        existing_keys.add(placed.widget_key)
     return ProfileState(
         window_x=base.window_x,
         window_y=base.window_y,
         window_width=base.window_width,
         window_height=base.window_height,
         theme_key=base.theme_key,
+        font_key=base.font_key,
         panel_opacity=base.panel_opacity,
-        widgets=(
-            ProfileWidgetState("todo", True, 1, 0, 5, 6),
-            ProfileWidgetState("today_agenda", True, 6, 0, 5, 6),
-            ProfileWidgetState("weather", True, 1, 6, 10, 3),
-        ),
+        widgets=tuple(widgets or _DEFAULT_WIDGET_LAYOUT),
     )
+
+
+def _widgets_overlap(left: ProfileWidgetState, right: ProfileWidgetState) -> bool:
+    return (
+        left.x < right.x + right.w
+        and left.x + left.w > right.x
+        and left.y < right.y + right.h
+        and left.y + left.h > right.y
+    )
+
+
+def _scaled_layout_int(
+    raw_widget: Mapping[str, object],
+    key: str,
+    fallback: int,
+    scale: int,
+) -> int:
+    value = _layout_int(raw_widget.get(key, fallback), key)
+    return value * scale if key in raw_widget else value
 
 
 def _widget_payload(widget: ProfileWidgetState) -> dict[str, object]:

@@ -39,7 +39,7 @@ The product is intentionally local-first and account-free.
 - Weather for mainland-China cities; overseas-city support is optional and non-blocking.
 - Verified built-in financial items from mainland-China-direct-accessible sources.
 - Multiple Dashboard Profiles.
-- Four light themes.
+- A curated set of light, dark, and high-contrast Dashboard themes.
 - Global network-status indicator.
 - Local SQLite persistence.
 - Lightweight rotating logs.
@@ -54,7 +54,6 @@ Do not add any of the following to V1:
 - WorkerW / behind-desktop-icons embedding;
 - multi-monitor support;
 - edge auto-hide / side dock behavior;
-- dark theme;
 - plugin/custom-widget system;
 - user scripting API;
 - arbitrary stock/security input;
@@ -167,7 +166,7 @@ Persistence ownership is explicit:
 |---|---|---|
 | `SettingsRepository` | `app_settings` | Small application settings only |
 | `TodoRepository` | `todos` | Todo persistence only |
-| `CourseRepository` | `semesters`, `recurring_courses`, `course_cancellations`, `one_off_courses`, `class_periods` | Semester/course domain only |
+| `CourseRepository` | `semesters`, `timetable_schemes`, `timetable_scheme_periods`, `recurring_courses`, `course_cancellations`, `one_off_courses` | Semester/course domain only; legacy `class_periods` is migration input only |
 | `ProfileRepository` | `profiles`, `profile_widgets` | Profile visual/spatial state only |
 | `WeatherRepository` | `weather_cities` | City list/order/primary-city configuration only; **not weather payload cache** |
 | `FinanceRepository` | `finance_preferences` | Enabled/order preferences only; **not market payload cache** |
@@ -269,7 +268,8 @@ layout_edit
 
 - GridStack layout is fixed;
 - Todo can be added/completed/edited/deleted/reordered/scrolled;
-- Today Agenda title can open the timetable;
+- Today Agenda can quick-add a Todo planned for today, and its title can open
+  the timetable;
 - Dashboard window and widgets cannot be moved/resized.
 
 #### Layout Edit Mode
@@ -284,6 +284,17 @@ While active:
 - widget show/hide may be changed;
 - normal Todo interaction is disabled to avoid drag conflicts;
 - a small `Save / Cancel` toolbar is visible.
+
+In Layout Edit, the normal title/mode, network-status, and `Open Settings`
+controls temporarily give way to a dedicated edit bar in the same shell-bar
+area. The edit bar uses a stable primary row for the edit label/instructions
+and `Save / Cancel`, plus a separate row for widget visibility controls. The
+visibility row wraps when space is tight and must not show a horizontal
+scrollbar. It must not overlap the Dashboard grid viewport. The blank edit-bar
+area is a window drag region; because the shell is hosted in QWebEngine, its
+pointer press may request a native caption drag through DashboardBridge. All
+buttons, inputs, and visibility labels are excluded from dragging. After Save
+or Cancel, the normal title/mode/status/Settings shell-bar content is restored.
 
 Entering Layout Edit records the previous daily mode (`Locked` or `Interaction`).
 
@@ -356,7 +367,11 @@ Financial widgets may coexist and may repeat the same underlying financial item 
 
 ## 8. Grid Layout and Widget Adaptation
 
-Dashboard uses a fixed **12-column GridStack topology**.
+Dashboard uses a fixed **48-column GridStack topology**. The vertical axis uses
+the same fine-grained layout units with a runtime cell height derived from the
+board width and clamped to 20–32 CSS pixels. The topology is fixed, while the
+number of occupied rows remains unbounded and the Dashboard viewport scrolls
+when needed.
 
 A Profile stores each widget's:
 
@@ -409,7 +424,7 @@ Profile does not save:
 - weather city list;
 - primary weather city;
 - financial item selection/order;
-- class-period times;
+- timetable scheme and period-axis configuration;
 - provider cache;
 - network status.
 
@@ -431,6 +446,13 @@ Required actions:
 - delete;
 - restore Default layout.
 
+When a user Profile named `1` (also accepted as `方案1`) exists, startup
+refreshes the built-in Default's Dashboard layout from that Profile. This
+copies the window geometry and widget visibility, positions, sizes, and display
+configuration only; Default's own theme, font, and opacity remain unchanged.
+The source Profile remains editable, and Default's built-in protection, Save As
+behavior, selection, and deletion rules do not change.
+
 If editing the built-in Default layout, changes must be saved as a user Profile rather than overwriting the built-in template. In Layout Edit, pressing Save while Default is active opens a small native **Save As Profile** name prompt; confirming creates/switches to the new user Profile and exits Layout Edit, while dismissing that prompt leaves the user in Layout Edit so they may Save again or use the normal Cancel action.
 
 If the currently active user Profile is deleted from Settings, DeskBoard switches to the built-in Default Profile.
@@ -439,28 +461,51 @@ When the eight-user-Profile limit is reached, creating another Profile is reject
 
 ---
 
-## 10. Themes and Visual Style
+## 10. Themes, Typography, and Visual Style
 
-V1 includes exactly four light themes:
+V1 includes a curated set of Dashboard themes. The initial catalog contains:
 
 - Mist Blue / 雾蓝晨光
 - Mint Breeze / 薄荷清风
 - Almond Sand / 杏仁暖沙
 - Lavender Cloud / 淡紫暮云
+- Ocean Night / 深海夜航
+- Graphite Night / 石墨夜色
+- Rose Dusk / 玫瑰暮色
+- High Contrast / 高对比度
+- Terra Signal / 大地信号
+- Frontier Foundry / 边境铸造
+- Astral Transit / 星际航线
+- Coastal Tide / 海岸潮汐
 
 Theme is stored per Profile.
+
+The Dashboard font is also stored per Profile. Font choices use installed system
+fonts with fallbacks; V1 does not download or bundle font files. The initial
+choices are System UI, Microsoft YaHei, Noto Sans, Source Han Sans, and Source
+Han Serif. A missing font must fall back without breaking the layout.
+
+The four additional themes are original token-based visual directions. They use
+project-authored colors and interface language only; the application does not
+bundle third-party logos, screenshots, character art, or other external assets.
 
 Visual direction:
 
 - minimal flat panel;
 - transparent outer Dashboard window;
-- light semi-transparent widget regions;
+- theme-appropriate semi-transparent widget regions;
 - clear opaque text/icons;
 - subtle separators/spacing;
 - subtle outer rounding;
 - almost no shadow;
 - no acrylic/mica blur;
 - no continuous decorative animation.
+
+Light and dark themes must use the same semantic color roles for headings,
+secondary text, controls, focus, status, and finance direction. Color must not
+be the only indication of state; text, symbols, or shape differences remain
+available. The high-contrast theme prioritizes readable borders and focus rings
+over decorative subtlety.
 
 Priority:
 
@@ -583,6 +628,11 @@ If the visible area is insufficient:
 - title/add controls remain fixed;
 - Locked Mode is pointer-through and therefore not scrollable.
 
+The Dashboard widget viewport is content-sized when all visible widgets fit, so
+it does not reserve a scrollbar or a persistent empty grid tail. It becomes
+vertically scrollable only when the visible layout extends beyond the available
+window area. Hidden widgets do not contribute rows to the visible grid height.
+
 ### 11.6 Todo interaction
 
 In Interaction Mode:
@@ -594,6 +644,10 @@ In Interaction Mode:
 - checkbox toggles complete/incomplete;
 - drag reorders;
 - right-click opens a compact context menu.
+
+The Today Agenda `+` performs the same quick-add interaction but assigns the
+new Todo to today's planned date. It has no planned time until edited in the
+Todo editor.
 
 Context menu:
 
@@ -649,6 +703,7 @@ id
 name
 start_monday
 total_weeks
+timetable_scheme_id (nullable)
 created_at
 updated_at
 ```
@@ -659,26 +714,62 @@ Current teaching week is calculated from Windows local date and `start_monday`; 
 
 No automatic semester switching is required.
 
-### 12.2 Global class periods
+### 12.2 Timetable schemes and period axes
 
-One global set of major-period references is shared by all semesters.
+Timetable period settings are reusable global schemes. Each semester may bind
+to zero or one scheme through `timetable_scheme_id`; one scheme may be reused
+by multiple semesters. The scheme is course/semester configuration, not Profile
+visual state, so switching Profiles does not change the timetable axis.
 
-A valid configured period set contains exactly eight unique rows:
+Each scheme stores:
 
 ```text
-period_no: 1..8
+id
+name
+axis_mode: custom_periods | uniform_day
+period_count: 1..24
+day_start: nullable HH:MM
+day_end: nullable HH:MM
+is_builtin
+created_at
+updated_at
+```
+
+`custom_periods` stores exactly `period_count` child rows in
+`timetable_scheme_periods`:
+
+```text
+scheme_id
+period_no: 1..period_count
 start_time
 end_time
 ```
 
-A fresh installation may be temporarily unconfigured until the user saves all eight period ranges in Settings. Partial, duplicate, or out-of-range period configurations are invalid and must not be treated as an active period set. DeskBoard must not invent school times.
+Custom rows must have `start_time < end_time`, increasing period order, no
+overlap, and no duplicate period numbers. Gaps such as lunch breaks are
+allowed. A partial, duplicate, out-of-range, overlapping, or otherwise invalid
+set is not active, and DeskBoard must not invent school times.
 
-These define:
+`uniform_day` is the explicit option for a timetable that does not use school
+period times. It stores no child period rows and uses `day_start` / `day_end`
+as a continuous visible range. The default range is `00:00` to `24:00`; the
+user may choose another range. `period_count` only controls the number of
+equal visual guide bands in this mode and does not create artificial school
+period semantics or labels. Course blocks are still positioned by their real
+start/end times.
 
-- left-side timetable reference labels;
-- weekly timetable visible vertical range.
+On a fresh installation no school-period scheme is active until the user
+chooses and saves one; the timetable then shows the existing compact
+configure-first state rather than fabricated bounds. During migration, a
+complete legacy `class_periods` set is copied unchanged into a built-in
+  `custom_periods` scheme named `方案1` and existing semesters are bound to it.
+  An incomplete legacy set remains unconfigured. An upgrade also normalizes the
+  previous built-in labels `Default方案` and `Legacy 8 periods` to `方案1`;
+the built-in scheme remains editable and savable. After migration, new reads
+and writes use the scheme tables; legacy `class_periods` is migration input
+only.
 
-Courses are not forced to align to period boundaries.
+Courses are not forced to align to period boundaries in any axis mode.
 
 ### 12.3 Recurring course
 
@@ -768,7 +859,17 @@ TodoService
 Todo eligibility for Today Agenda is the union of `planned_date == today`
 and `deadline_date == today`; if both dates match, the Todo appears only once.
 
-### 13.1 Timed section
+### 13.1 Unified Dashboard list
+
+The Dashboard renders timed and date-only agenda items in one `今日事项` list;
+there are no separate timed/date-only sections. Timed items retain their
+semantic ordering before date-only items, and an item's start/range time is
+shown inline after its title. Date-only items show no time suffix.
+
+The service-level distinctions below remain for ordering, conflict detection,
+and timetable semantics; they are not separate Dashboard lists.
+
+### 13.2 Timed items
 
 Include:
 
@@ -780,7 +881,7 @@ Sort by planned/course start time.
 
 Do not hide or grey an item merely because its time has already passed. All of today's past and future items remain visible for the day.
 
-### 13.2 Date-only section
+### 13.3 Date-only items
 
 A Todo whose `planned_date == today` but has no planned time, or whose
 `deadline_date == today` while its planned date is missing/another date,
@@ -791,13 +892,14 @@ Multiple date-only Todos follow their Todo manual order.
 A Todo with no planned date/time and no deadline due today does not appear in
 Today Agenda.
 
-### 13.3 Interaction
+### 13.4 Interaction
 
-Today Agenda is view-only.
+Today Agenda rows are view-only; the widget also provides a quick-add action.
 
 - individual rows are not editable;
 - individual Todos are not completed here;
 - course rows are not editable here;
+- the `+` action creates a Todo planned for today without a planned time;
 - clicking the widget title in Interaction Mode opens the weekly timetable overlay.
 
 ---
@@ -832,15 +934,21 @@ Settings provides one of:
 
 ### 14.3 Vertical axis
 
-Vertical positioning uses real continuous clock time.
+The active semester's bound timetable scheme determines the vertical axis.
+Vertical positioning always uses real continuous clock time.
 
-Left side displays major-period labels `1..8` as reference lines.
+- `custom_periods`: the visible range is the first configured period start
+  through the last configured period end; the left side may display the saved
+  period labels `1..N` as reference lines.
+- `uniform_day`: the visible range is the saved `day_start` through
+  `day_end`; equal guide bands use `period_count` only as a visual grid and do
+  not imply school-period labels.
 
-The visible time range is bounded by the configured global period 1 start through period 8 end.
-
-Course/Todo data outside this visible range is not rendered on the timetable.
-
-If the global period set has not yet been configured, the timetable overlay must not invent vertical bounds. It shows a compact configuration-required empty state directing the user to Settings. Today Agenda remains usable because it does not depend on timetable period bounds.
+Course/Todo data outside the selected scheme's visible range is not rendered
+on the timetable. If the active semester has no scheme, or its scheme is not
+valid, the overlay must not invent vertical bounds. It shows a compact
+configuration-required empty state directing the user to Settings. Today
+Agenda remains usable because it does not depend on timetable scheme bounds.
 
 ### 14.4 Course blocks
 
@@ -873,6 +981,22 @@ When a Todo overlaps a course:
 - apply a light overlap indication;
 - do not block save;
 - do not auto-reschedule.
+
+### 14.8 Timetable readability
+
+The timetable uses responsive typography. Its title, day headers, axis labels,
+course/Todo blocks, and metadata become larger when the overlay has sufficient
+width, while compact widths fall back to smaller values to avoid clipping or
+overlap. Dashboard widget typography is derived from the nearest live card or
+widget container and scales smoothly within readable bounds. Finance name/value
+pairs remain a two-column single-line heading at compact widths; only text that
+actually exceeds its available track is right-elided or wrapped.
+
+The native Settings Courses page keeps its semester, recurring-course,
+one-off-course, and timetable-scheme collections at roughly six to seven
+visible rows instead of expanding to fill the page. Collection items remain on
+one line; overly long text is elided at the right and remains available in the
+item tooltip.
 
 ---
 
@@ -1018,7 +1142,7 @@ change percentage where meaningful
 optional closed-market secondary label
 ```
 
-Displayed FX values are normalized to a consistent DeskBoard convention of **1 unit of foreign currency = CNY**, even when an upstream source quotes per 100 units. Upstream quotation basis remains a Provider concern.
+Provider and cache FX values use a consistent DeskBoard convention of **1 unit of foreign currency = CNY**, even when an upstream source quotes per 100 units. Upstream quotation basis remains a Provider concern. Finance presentation uses a readable display basis derived from the normalized value: when CNY per 1 foreign unit is greater than or equal to 1, display `1 foreign unit = N CNY`; when it is greater than 0 and less than 1, display `1 CNY = N foreign units`, where `N` is the reciprocal. This inversion is presentation-only and must not change provider/cache values, stable keys, or source quotation metadata; invalid or non-positive values are unavailable rather than inverted.
 
 No chart/sparkline/history.
 
@@ -1253,7 +1377,17 @@ Simple settings may apply immediately, for example:
 - finance enable/disable;
 - finance order;
 - theme/opacity where edited through Profile UI;
+- Dashboard font where edited through Profile UI;
 - autostart.
+
+When a Profile theme is selected for preview, the native Settings shell and
+the currently visible Settings page must apply the same theme semantic palette
+immediately as the Dashboard. Before a Profile/theme has been loaded, Settings
+uses the safe initial Mist Blue/light fallback palette; it must not inherit
+black surfaces from the Windows system night-mode setting. Preview is not
+persistent until the user saves the Profile appearance. Cancelling or closing
+without saving must leave the persisted Profile unchanged, and the next
+Settings open must restore that persisted palette.
 
 Structured object editing uses explicit Save/Cancel, for example:
 
@@ -1271,7 +1405,15 @@ Includes at least:
 - current Locked/Interaction mode;
 - enter Layout Edit;
 - autostart toggle;
+- Settings language, default Simplified Chinese (`zh_CN`) with English
+  (`en_US`) as an immediate switch;
 - exit application.
+
+The selected Settings language is an application setting stored in SQLite
+`app_settings` under `ui.language`. It does not create a second JSON/YAML
+configuration store. All native Settings page chrome and static controls must
+be available in both languages; user-created names and provider data are not
+translated.
 
 ### 19.3 Data Status
 
@@ -1322,10 +1464,11 @@ app_settings
 todos
 
 semesters
+timetable_schemes
+timetable_scheme_periods
 recurring_courses
 course_cancellations
 one_off_courses
-class_periods
 
 profiles
 profile_widgets
@@ -1338,10 +1481,22 @@ network_cache
 network_state
 ```
 
+An upgrade migration may read the legacy `class_periods` table to preserve an
+existing eight-period configuration, but steady-state repositories do not
+read or write that table after the timetable-scheme migration.
+
 ### 21.1 Key constraints
 
 - `course_cancellations(recurring_course_id, occurrence_date)` unique.
-- `class_periods.period_no` constrained to 1..8.
+- `semesters.timetable_scheme_id` is nullable and references one global
+  timetable scheme; deleting a scheme requires confirmation and unbinds the
+  affected semesters into the configure-first state.
+- `timetable_schemes.period_count` is constrained to 1..24.
+- A `custom_periods` scheme has exactly one valid child row for each
+  `period_no` from 1 through `period_count`; a `uniform_day` scheme has no
+  child rows and requires `day_start < day_end`.
+- `timetable_scheme_periods(scheme_id, period_no)` is unique and child rows
+  cascade when their scheme is deleted.
 - profile/widget key combination unique.
 - user Profile count enforced by service: max 8 plus built-in Default.
 - foreign keys enabled.
@@ -1377,6 +1532,7 @@ Conceptual shape:
   "widgets": {},
   "todos": [],
   "agenda": {},
+  "timetable": {"axis": {}},
   "weather": {},
   "finance": {},
   "networkStatus": {"state": "green"}
@@ -1390,6 +1546,7 @@ The final bridge should expose actions in this shape:
 ```text
 requestInitialState()
 addQuickTodo(content)
+addTodayTodo(content)
 toggleTodo(todo_id)
 reorderTodos(ordered_ids)
 openTodoEditor(todo_id)
@@ -1397,6 +1554,7 @@ requestDeleteTodo(todo_id)
 requestWeeklyTimetable()
 saveLayout(layout_state)
 cancelLayoutEdit()
+beginWindowDrag(screen_x, screen_y)
 ```
 
 Exact Qt slot signatures may be adapted to QWebChannel serialization requirements, but semantic names/ownership must remain consistent.
@@ -1430,6 +1588,7 @@ Presentation layer converts domain state to ViewModels, including:
 - completed boolean;
 - Agenda ordering;
 - finance formatted text/direction;
+- active timetable scheme axis metadata and normalized guide references;
 - timetable conflict metadata;
 - normalized weather fields.
 
@@ -1475,6 +1634,7 @@ Requirements:
 - one QWebEngineView only;
 - no high-frequency JS polling;
 - no high-frequency network requests;
+- the 48-column topology must remain a coordinate-resolution change only; do not create one DOM node or timer per grid cell;
 - no continuous decorative animation;
 - hide/show Dashboard without destroying/recreating QWebEngine.
 
@@ -1622,13 +1782,15 @@ Completion requires:
 - semester/course behavior matches this spec;
 - Today Agenda matches this spec;
 - weekly timetable matches this spec;
-- 12-column layout/Profile persistence is stable;
+- 48-column layout/Profile persistence is stable, including migration of the original 12-column Profile coordinates;
 - up to 8 user Profiles plus built-in Default works;
 - Weather uses validated mainland-China-direct data;
 - every shipped Finance catalog item uses validated mainland-China-direct data;
 - 60-minute refresh/cache fallback works;
 - one global grey/green/red status works;
 - Settings manages all V1 global configuration;
+- Dashboard theme/font choices persist per Profile;
+- native Settings defaults to Chinese and can switch to English;
 - tray and startup behavior work;
 - idle CPU is low and no obvious long-run memory leak exists;
 - PyInstaller/Inno installer works on a clean Windows user environment;

@@ -7,16 +7,20 @@ from collections.abc import Iterable
 from datetime import date, datetime, time
 
 from deskboard.models.course import (
+    END_OF_DAY,
     ClassPeriod,
     CourseCancellation,
     OneOffCourse,
     RecurringCourse,
     Semester,
+    TimetableScheme,
+    TimetableSchemeAxisMode,
+    TimetableSchemePeriod,
 )
 
 
 class CourseRepository:
-    """Persist only the five tables owned by the course domain."""
+    """Persist only the semester, timetable-scheme, and course-domain tables."""
 
     def __init__(self, connection: sqlite3.Connection) -> None:
         self._connection = connection
@@ -29,12 +33,16 @@ class CourseRepository:
         total_weeks: int,
         now: datetime,
         is_active: bool = False,
+        timetable_scheme_id: int | None = None,
     ) -> Semester:
+        if timetable_scheme_id is not None:
+            self.require_timetable_scheme(timetable_scheme_id)
         cursor = self._connection.execute(
             """
             INSERT INTO semesters(
-                name, start_monday, total_weeks, is_active, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?)
+                name, start_monday, total_weeks, is_active, created_at, updated_at,
+                timetable_scheme_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 name,
@@ -43,6 +51,7 @@ class CourseRepository:
                 int(is_active),
                 _datetime_text(now),
                 _datetime_text(now),
+                timetable_scheme_id,
             ),
         )
         self._connection.commit()
@@ -100,9 +109,11 @@ class CourseRepository:
         self.require_semester(semester_id)
         if not fields:
             return self.require_semester(semester_id)
-        allowed = {"name", "start_monday", "total_weeks"}
+        allowed = {"name", "start_monday", "total_weeks", "timetable_scheme_id"}
         if not fields.keys() <= allowed:
             raise ValueError("Unsupported Semester field update")
+        if fields.get("timetable_scheme_id") is not None:
+            self.require_timetable_scheme(int(fields["timetable_scheme_id"]))
         serialized = {key: _serialize(value) for key, value in fields.items()}
         assignments = ", ".join(f"{key} = ?" for key in serialized)
         values = [*serialized.values(), _datetime_text(now), semester_id]
@@ -111,6 +122,221 @@ class CourseRepository:
         )
         self._connection.commit()
         return self.require_semester(semester_id)
+
+    # Timetable schemes and semester bindings.
+    def create_timetable_scheme(
+        self,
+        *,
+        name: str,
+        axis_mode: TimetableSchemeAxisMode,
+        period_count: int,
+        day_start: time | None,
+        day_end: time | None,
+        periods: Iterable[TimetableSchemePeriod],
+        now: datetime,
+        is_builtin: bool = False,
+    ) -> TimetableScheme:
+        period_rows = tuple(periods)
+        _require_scheme_row_shape(axis_mode, period_count, period_rows)
+        try:
+            self._connection.execute("BEGIN IMMEDIATE")
+            cursor = self._connection.execute(
+                """
+                INSERT INTO timetable_schemes(
+                    name, axis_mode, period_count, day_start, day_end,
+                    is_builtin, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    name,
+                    axis_mode,
+                    period_count,
+                    _time_text(day_start),
+                    _time_text(day_end),
+                    int(is_builtin),
+                    _datetime_text(now),
+                    _datetime_text(now),
+                ),
+            )
+            scheme_id = int(cursor.lastrowid)
+            self._insert_scheme_periods(scheme_id, period_rows)
+            self._connection.commit()
+        except BaseException:
+            self._connection.rollback()
+            raise
+        return self.require_timetable_scheme(scheme_id)
+
+    def get_timetable_scheme(self, scheme_id: int) -> TimetableScheme | None:
+        row = self._connection.execute(
+            f"SELECT {_SCHEME_COLUMNS} FROM timetable_schemes WHERE id = ?",
+            (scheme_id,),
+        ).fetchone()
+        return None if row is None else self._scheme_from_row(row)
+
+    def require_timetable_scheme(self, scheme_id: int) -> TimetableScheme:
+        scheme = self.get_timetable_scheme(scheme_id)
+        if scheme is None:
+            raise LookupError(f"Timetable scheme {scheme_id} does not exist")
+        return scheme
+
+    def list_timetable_schemes(self) -> list[TimetableScheme]:
+        rows = self._connection.execute(
+            f"SELECT {_SCHEME_COLUMNS} FROM timetable_schemes ORDER BY name, id"
+        )
+        return [self._scheme_from_row(row) for row in rows]
+
+    def replace_timetable_scheme(
+        self,
+        scheme_id: int,
+        *,
+        name: str,
+        axis_mode: TimetableSchemeAxisMode,
+        period_count: int,
+        day_start: time | None,
+        day_end: time | None,
+        periods: Iterable[TimetableSchemePeriod],
+        now: datetime,
+    ) -> TimetableScheme:
+        self.require_timetable_scheme(scheme_id)
+        period_rows = tuple(periods)
+        _require_scheme_row_shape(axis_mode, period_count, period_rows)
+        try:
+            self._connection.execute("BEGIN IMMEDIATE")
+            self._connection.execute(
+                """
+                UPDATE timetable_schemes
+                SET name = ?, axis_mode = ?, period_count = ?, day_start = ?, day_end = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    name,
+                    axis_mode,
+                    period_count,
+                    _time_text(day_start),
+                    _time_text(day_end),
+                    _datetime_text(now),
+                    scheme_id,
+                ),
+            )
+            self._connection.execute(
+                "DELETE FROM timetable_scheme_periods WHERE scheme_id = ?", (scheme_id,)
+            )
+            self._insert_scheme_periods(scheme_id, period_rows)
+            self._connection.commit()
+        except BaseException:
+            self._connection.rollback()
+            raise
+        return self.require_timetable_scheme(scheme_id)
+
+    def rename_timetable_scheme(self, scheme_id: int, name: str, now: datetime) -> TimetableScheme:
+        self.require_timetable_scheme(scheme_id)
+        self._connection.execute(
+            "UPDATE timetable_schemes SET name = ?, updated_at = ? WHERE id = ?",
+            (name, _datetime_text(now), scheme_id),
+        )
+        self._connection.commit()
+        return self.require_timetable_scheme(scheme_id)
+
+    def duplicate_timetable_scheme(
+        self, scheme_id: int, *, name: str, now: datetime
+    ) -> TimetableScheme:
+        source = self.require_timetable_scheme(scheme_id)
+        return self.create_timetable_scheme(
+            name=name,
+            axis_mode=source.axis_mode,
+            period_count=source.period_count,
+            day_start=source.day_start,
+            day_end=source.day_end,
+            periods=source.periods,
+            now=now,
+            is_builtin=False,
+        )
+
+    def delete_timetable_scheme(self, scheme_id: int) -> None:
+        cursor = self._connection.execute(
+            "DELETE FROM timetable_schemes WHERE id = ?", (scheme_id,)
+        )
+        if cursor.rowcount != 1:
+            self._connection.rollback()
+            raise LookupError(f"Timetable scheme {scheme_id} does not exist")
+        self._connection.commit()
+
+    def bind_semester_timetable_scheme(
+        self, semester_id: int, scheme_id: int | None, now: datetime
+    ) -> Semester:
+        self.require_semester(semester_id)
+        if scheme_id is not None:
+            self.require_timetable_scheme(scheme_id)
+        self._connection.execute(
+            """
+            UPDATE semesters SET timetable_scheme_id = ?, updated_at = ? WHERE id = ?
+            """,
+            (scheme_id, _datetime_text(now), semester_id),
+        )
+        self._connection.commit()
+        return self.require_semester(semester_id)
+
+    def get_timetable_scheme_for_semester(self, semester_id: int) -> TimetableScheme | None:
+        semester = self.require_semester(semester_id)
+        return (
+            None
+            if semester.timetable_scheme_id is None
+            else self.get_timetable_scheme(semester.timetable_scheme_id)
+        )
+
+    def get_active_timetable_scheme(self) -> TimetableScheme | None:
+        semester = self.get_active_semester()
+        return None if semester is None else self.get_timetable_scheme_for_semester(semester.id)
+
+    def _insert_scheme_periods(
+        self, scheme_id: int, periods: Iterable[TimetableSchemePeriod]
+    ) -> None:
+        self._connection.executemany(
+            """
+            INSERT INTO timetable_scheme_periods(scheme_id, period_no, start_time, end_time)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                (
+                    scheme_id,
+                    period.period_no,
+                    _time_text(period.start_time),
+                    _time_text(period.end_time),
+                )
+                for period in periods
+            ),
+        )
+
+    def _scheme_from_row(self, row: sqlite3.Row | tuple[object, ...]) -> TimetableScheme:
+        period_rows = self._connection.execute(
+            """
+            SELECT period_no, start_time, end_time
+            FROM timetable_scheme_periods
+            WHERE scheme_id = ? ORDER BY period_no
+            """,
+            (int(row[0]),),
+        )
+        periods = tuple(
+            TimetableSchemePeriod(
+                period_no=int(period[0]),
+                start_time=_time_from_text(period[1]),
+                end_time=_time_from_text(period[2]),
+            )
+            for period in period_rows
+        )
+        return TimetableScheme(
+            id=int(row[0]),
+            name=str(row[1]),
+            axis_mode=str(row[2]),  # type: ignore[arg-type]
+            period_count=int(row[3]),
+            day_start=_time_from_text(row[4]),
+            day_end=_time_from_text(row[5]),
+            is_builtin=bool(row[6]),
+            periods=periods,
+            created_at=datetime.fromisoformat(str(row[7])),
+            updated_at=datetime.fromisoformat(str(row[8])),
+        )
 
     def delete_semester(self, semester_id: int) -> None:
         cursor = self._connection.execute(
@@ -387,36 +613,62 @@ class CourseRepository:
         self._connection.commit()
 
     def replace_class_periods(self, periods: Iterable[ClassPeriod]) -> None:
-        period_rows = list(periods)
-        try:
-            self._connection.execute("BEGIN IMMEDIATE")
-            self._connection.execute("DELETE FROM class_periods")
-            self._connection.executemany(
-                "INSERT INTO class_periods(period_no, start_time, end_time) VALUES (?, ?, ?)",
-                (
-                    (period.period_no, _time_text(period.start_time), _time_text(period.end_time))
-                    for period in period_rows
-                ),
+        # Compatibility for the pre-Task-31 public service surface.  New
+        # writes still go through the scheme tables; no legacy table is used.
+        period_rows = tuple(
+            TimetableSchemePeriod(item.period_no, item.start_time, item.end_time)
+            for item in periods
+        )
+        existing = next(
+            (
+                scheme
+                for scheme in self.list_timetable_schemes()
+                if scheme.is_builtin and scheme.axis_mode == "custom_periods"
+            ),
+            None,
+        )
+        if existing is None:
+            self.create_timetable_scheme(
+                name="方案1",
+                axis_mode="custom_periods",
+                period_count=len(period_rows),
+                day_start=None,
+                day_end=None,
+                periods=period_rows,
+                now=datetime.now(),
+                is_builtin=True,
             )
-            self._connection.commit()
-        except BaseException:
-            self._connection.rollback()
-            raise
+        else:
+            self.replace_timetable_scheme(
+                existing.id,
+                name=existing.name,
+                axis_mode="custom_periods",
+                period_count=len(period_rows),
+                day_start=None,
+                day_end=None,
+                periods=period_rows,
+                now=datetime.now(),
+            )
 
     def save_class_periods(self, periods: Iterable[ClassPeriod]) -> None:
         self.replace_class_periods(periods)
 
     def list_class_periods(self) -> list[ClassPeriod]:
-        rows = self._connection.execute(
-            "SELECT period_no, start_time, end_time FROM class_periods ORDER BY period_no"
-        )
-        return [
-            ClassPeriod(
-                period_no=int(row[0]),
-                start_time=time.fromisoformat(str(row[1])),
-                end_time=time.fromisoformat(str(row[2])),
+        scheme = self.get_active_timetable_scheme()
+        if scheme is None:
+            scheme = next(
+                (
+                    item
+                    for item in self.list_timetable_schemes()
+                    if item.axis_mode == "custom_periods"
+                ),
+                None,
             )
-            for row in rows
+        if scheme is None or scheme.axis_mode != "custom_periods":
+            return []
+        return [
+            ClassPeriod(period.period_no, period.start_time, period.end_time)
+            for period in scheme.periods
         ]
 
     def get_class_periods(self) -> list[ClassPeriod]:
@@ -424,7 +676,12 @@ class CourseRepository:
 
 
 _SEMESTER_COLUMNS = (
-    "id, name, start_monday, total_weeks, is_active, created_at, updated_at"
+    "id, name, start_monday, total_weeks, is_active, created_at, updated_at, "
+    "timetable_scheme_id"
+)
+_SCHEME_COLUMNS = (
+    "id, name, axis_mode, period_count, day_start, day_end, is_builtin, "
+    "created_at, updated_at"
 )
 _RECURRING_COLUMNS = (
     "id, semester_id, name, weekday, start_time, end_time, start_week, end_week, "
@@ -440,8 +697,21 @@ def _date_text(value: date) -> str:
     return value.isoformat()
 
 
-def _time_text(value: time) -> str:
+def _time_text(value: time | None) -> str | None:
+    if value is None:
+        return None
+    if value == END_OF_DAY:
+        return "24:00"
     return value.isoformat(timespec="seconds")
+
+
+def _time_from_text(value: object) -> time | None:
+    if value is None:
+        return None
+    text = str(value)
+    if text in {"24:00", "24:00:00"}:
+        return END_OF_DAY
+    return time.fromisoformat(text)
 
 
 def _datetime_text(value: datetime) -> str:
@@ -467,7 +737,37 @@ def _semester_from_row(row: sqlite3.Row | tuple[object, ...]) -> Semester:
         is_active=bool(row[4]),
         created_at=datetime.fromisoformat(str(row[5])),
         updated_at=datetime.fromisoformat(str(row[6])),
+        timetable_scheme_id=None if row[7] is None else int(row[7]),
     )
+
+
+def _require_scheme_row_shape(
+    axis_mode: TimetableSchemeAxisMode,
+    period_count: int,
+    periods: tuple[TimetableSchemePeriod, ...],
+) -> None:
+    if axis_mode not in ("custom_periods", "uniform_day"):
+        raise sqlite3.IntegrityError("unsupported timetable scheme axis mode")
+    if isinstance(period_count, bool) or not isinstance(period_count, int):
+        raise sqlite3.IntegrityError("period_count must be an integer")
+    if not 1 <= period_count <= 24:
+        raise sqlite3.IntegrityError("period_count must be between 1 and 24")
+    if axis_mode == "custom_periods" and len(periods) != period_count:
+        raise sqlite3.IntegrityError(
+            "custom_periods requires exactly one row per configured period"
+        )
+    if axis_mode == "custom_periods":
+        if [period.period_no for period in periods] != list(range(1, period_count + 1)):
+            raise sqlite3.IntegrityError("custom periods must be numbered 1 through period_count")
+        previous_end: time | None = None
+        for period in periods:
+            if period.end_time <= period.start_time:
+                raise sqlite3.IntegrityError("custom period end must be later than start")
+            if previous_end is not None and period.start_time < previous_end:
+                raise sqlite3.IntegrityError("custom periods must not overlap")
+            previous_end = period.end_time
+    if axis_mode == "uniform_day" and periods:
+        raise sqlite3.IntegrityError("uniform_day cannot store period rows")
 
 
 def _recurring_from_row(row: sqlite3.Row | tuple[object, ...]) -> RecurringCourse:

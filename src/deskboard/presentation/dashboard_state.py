@@ -28,6 +28,12 @@ class WeatherPresenterLike(Protocol):
     ) -> Mapping[str, object]: ...
 
 
+class FinancePresenterLike(Protocol):
+    def present(
+        self, *, category: str | None = None, max_items: int | None = None
+    ) -> Mapping[str, object]: ...
+
+
 class NetworkStatusLike(Protocol):
     @property
     def color(self) -> str: ...
@@ -56,7 +62,9 @@ def present_dashboard_state(
     weather_presenter: WeatherPresenterLike | None = None,
     weather_display_mode: str | None = None,
     weather_max_cities: int | None = None,
+    finance_presenter: FinancePresenterLike | None = None,
     network_status_service: NetworkStatusLike | None = None,
+    language: str = "zh_CN",
 ) -> DashboardState:
     """Collect current service presentations in one coarse state snapshot.
 
@@ -89,18 +97,26 @@ def present_dashboard_state(
                 max_cities=weather_max_cities,
             )
         )
+    finance_state = dict(finance or {})
+    if finance_presenter is not None:
+        finance_state = dict(finance_presenter.present())
     network_state = dict(network_status or {"state": "grey"})
     if network_status_service is not None:
         color = network_status_service.color
         network_state = {"state": color if color in {"grey", "green", "red"} else "grey"}
+    language_value = language if language in {"zh_CN", "en_US"} else "zh_CN"
     return {
-        "app": {"mode": mode_value, "today": today.isoformat()},
+        "app": {
+            "mode": mode_value,
+            "today": today.isoformat(),
+            "language": language_value,
+        },
         "profile": dict(profile or {}),
         "widgets": dict(widgets or {"weather": {}, "todo": {}, "today_agenda": {}}),
         "todos": todos,
         "agenda": agenda,
         "weather": weather_state,
-        "finance": dict(finance or {}),
+        "finance": finance_state,
         "networkStatus": network_state,
     }
 
@@ -120,10 +136,12 @@ class DashboardStatePresenter:
         todo_service: TodoStateService | None,
         agenda_service: AgendaStateService | None,
         clock: Clock,
+        finance_presenter: FinancePresenterLike | None = None,
     ) -> None:
         self._todo_service = todo_service
         self._agenda_service = agenda_service
         self._clock = clock
+        self._finance_presenter = finance_presenter
 
     def present(self, *, mode: AppMode | str = AppMode.INTERACTION) -> DashboardState:
         return present_dashboard_state(
@@ -131,6 +149,7 @@ class DashboardStatePresenter:
             agenda_service=self._agenda_service,
             clock=self._clock,
             mode=mode,
+            finance_presenter=self._finance_presenter,
         )
 
 

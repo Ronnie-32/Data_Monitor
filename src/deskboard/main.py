@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from deskboard.app.application import DeskBoardApplication, as_qt_application
 from deskboard.app.single_instance import InstanceRole, SingleInstanceGuard
+from deskboard.app.startup import DayRolloverScheduler
 from deskboard.infrastructure.logging_setup import configure_logging
 from deskboard.infrastructure.paths import RuntimePaths, ensure_runtime_dirs
 
@@ -35,10 +36,17 @@ def main(argv: list[str] | None = None) -> int:
 
     from deskboard.database.connection import connect_database
     from deskboard.database.schema import migrate
+    from deskboard.infrastructure.autostart import CurrentUserAutostart
     from deskboard.infrastructure.clock import SystemClock
+    from deskboard.presentation.finance_presenter import FinancePresenter
     from deskboard.presentation.weather_presenter import WeatherPresenter
+    from deskboard.providers.china_index.provider import ChinaIndexProvider
+    from deskboard.providers.fx.provider import FXProvider
+    from deskboard.providers.gold.provider import GoldProvider
+    from deskboard.providers.us_index.provider import USIndexProvider
     from deskboard.providers.weather.provider import WeatherProvider
     from deskboard.repositories.course_repository import CourseRepository
+    from deskboard.repositories.finance_repository import FinanceRepository
     from deskboard.repositories.network_repository import NetworkRepository
     from deskboard.repositories.profile_repository import ProfileRepository
     from deskboard.repositories.settings_repository import SettingsRepository
@@ -46,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
     from deskboard.repositories.weather_repository import WeatherRepository
     from deskboard.services.agenda_service import AgendaService
     from deskboard.services.course_service import CourseService
+    from deskboard.services.finance_service import FinanceService
     from deskboard.services.profile_service import ProfileService
     from deskboard.services.refresh_service import DataRefreshService
     from deskboard.services.settings_service import SettingsService
@@ -76,18 +85,28 @@ def main(argv: list[str] | None = None) -> int:
     agenda_service = AgendaService(todo_service, course_service)
     timetable_service = TimetableService(todo_service, course_service)
     network_repository = NetworkRepository(connection)
+    finance_service = FinanceService(FinanceRepository(connection))
     weather_service = WeatherService(WeatherRepository(connection))
+    autostart = CurrentUserAutostart()
     weather_provider = WeatherProvider(cities=weather_service.list_cities())
-    status_service = StatusService(network_repository, items=weather_provider.items)
+    finance_providers = (
+        GoldProvider(),
+        FXProvider(),
+        ChinaIndexProvider(),
+        USIndexProvider(),
+    )
+    network_items = (*weather_provider.items, *finance_service.network_items())
+    status_service = StatusService(network_repository, items=network_items)
     refresh_service = DataRefreshService(
         network_repository,
         clock,
-        providers=[weather_provider],
-        items=weather_provider.items,
+        providers=(weather_provider, *finance_providers),
+        items=network_items,
         status_service=status_service,
         settings_service=settings_service,
     )
     weather_presenter = WeatherPresenter(weather_service, refresh_service)
+    finance_presenter = FinancePresenter(finance_service, refresh_service)
     qt_application.aboutToQuit.connect(connection.close)
     dashboard = DashboardWindow(
         todo_service=todo_service,
@@ -96,10 +115,25 @@ def main(argv: list[str] | None = None) -> int:
         profile_service=profile_service,
         clock=clock,
         weather_presenter=weather_presenter,
+        finance_presenter=finance_presenter,
         network_status_service=status_service,
         refresh_service=refresh_service,
+        settings_service=settings_service,
+    )
+    day_rollover_scheduler = DayRolloverScheduler(
+        clock,
+        dashboard.refresh_date_dependent_state,
     )
     refresh_service.startup()
+
+    def sync_weather_cities(requires_refresh: bool) -> None:
+        weather_provider.set_cities(weather_service.list_cities())
+        refresh_service.replace_provider(weather_provider, items=weather_provider.items)
+        dashboard.bridge.publish_weather()
+        dashboard.bridge.publish_network_status()
+        if requires_refresh:
+            refresh_service.refresh_group("weather")
+            dashboard.bridge.publish_network_status()
 
     def make_settings(set_mode, show_dashboard, hide_dashboard, exit_application):
         return SettingsWindow(
@@ -110,6 +144,19 @@ def main(argv: list[str] | None = None) -> int:
             todo_service=todo_service,
             clock=clock,
             on_todos_changed=dashboard.bridge.publish_todos,
+            settings_service=settings_service,
+            profile_service=profile_service,
+            weather_service=weather_service,
+            finance_service=finance_service,
+            course_service=course_service,
+            refresh_service=refresh_service,
+            log_directory=runtime.paths.logs,
+            autostart=autostart,
+            on_profile_switched=dashboard.apply_profile_state,
+            on_profile_preview=dashboard.preview_profile_state,
+            on_language_changed=dashboard.bridge.publish_language,
+            on_weather_cities_changed=sync_weather_cities,
+            on_course_data_changed=dashboard.bridge.publish_timetable,
         )
 
     application = DeskBoardApplication(
@@ -117,9 +164,11 @@ def main(argv: list[str] | None = None) -> int:
         dashboard_factory=lambda: dashboard,
         settings_factory=make_settings,
         instance_guard=instance_guard,
+        startup_settings=settings_service,
+        day_rollover_scheduler=day_rollover_scheduler,
     )
     application_holder.append(application)
-    application.start(open_settings=False)
+    application.start()
     if "--smoke" in arguments:
         QTimer.singleShot(2_000, qt_application.quit)
     return application.run()

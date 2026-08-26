@@ -6,7 +6,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-
 LOGGER_NAME = "deskboard"
 DEFAULT_MAX_BYTES = 1_000_000
 DEFAULT_BACKUP_COUNT = 2

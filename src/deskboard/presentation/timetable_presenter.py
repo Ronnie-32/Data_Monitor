@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from deskboard.services.timetable_service import TimetableEvent, TimetableWeek
+from deskboard.models.course import END_OF_DAY
+from deskboard.services.timetable_service import TimetableEvent, TimetableGuide, TimetableWeek
 
 
 class TimetableEventViewModel(TypedDict, total=False):
@@ -26,6 +27,23 @@ class TimetablePeriodViewModel(TypedDict):
     end: str
 
 
+class TimetableGuideViewModel(TypedDict, total=False):
+    index: int
+    start: str
+    end: str
+    label: str
+
+
+class TimetableAxisViewModel(TypedDict, total=False):
+    mode: str | None
+    schemeId: int | None
+    schemeName: str | None
+    periodCount: int
+    visibleStart: str | None
+    visibleEnd: str | None
+    guides: list[TimetableGuideViewModel]
+
+
 class TimetableViewModel(TypedDict):
     weekLabel: str
     weekStart: str
@@ -35,6 +53,7 @@ class TimetableViewModel(TypedDict):
     visibleEnd: str | None
     configurationRequired: bool
     periods: list[TimetablePeriodViewModel]
+    axis: TimetableAxisViewModel
     events: list[TimetableEventViewModel]
 
 
@@ -55,6 +74,7 @@ def present_timetable(
         "visibleStart": _time_text(week.visible_start),
         "visibleEnd": _time_text(week.visible_end),
         "configurationRequired": week.configuration_required,
+        "axis": _present_axis(week),
         "periods": [
             {
                 "period": period.period_no,
@@ -91,4 +111,32 @@ def present_timetable_week(
 
 
 def _time_text(value) -> str | None:
-    return None if value is None else value.strftime("%H:%M")
+    if value is None:
+        return None
+    if value == END_OF_DAY:
+        return "24:00"
+    return value.strftime("%H:%M")
+
+
+def _present_axis(week: TimetableWeek) -> TimetableAxisViewModel:
+    guides = [_present_guide(guide) for guide in week.guides]
+    return {
+        "mode": week.axis_mode,
+        "schemeId": week.scheme_id,
+        "schemeName": week.scheme_name,
+        "periodCount": week.guide_count,
+        "visibleStart": _time_text(week.visible_start),
+        "visibleEnd": _time_text(week.visible_end),
+        "guides": guides,
+    }
+
+
+def _present_guide(guide: TimetableGuide) -> TimetableGuideViewModel:
+    result: TimetableGuideViewModel = {
+        "index": guide.index,
+        "start": _time_text(guide.start) or "",
+        "end": _time_text(guide.end) or "",
+    }
+    if guide.label is not None:
+        result["label"] = guide.label
+    return result

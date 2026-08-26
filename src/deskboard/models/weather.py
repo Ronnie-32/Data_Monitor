@@ -95,3 +95,15 @@ class WeatherCity:
 BEIJING = WeatherCity("beijing", "北京", "101010100", 0, True)
 SHANGHAI = WeatherCity("shanghai", "上海", "101020100", 1, False)
 DEFAULT_WEATHER_CITIES = (BEIJING, SHANGHAI)
+
+WEATHER_SOURCE_CITY_ID_ALIASES = {
+    "suzhou": "101190401",
+    "苏州": "101190401",
+}
+
+
+def resolve_weather_source_city_id(source_city_id: str) -> str:
+    """Resolve a friendly city alias to the fixed weather.com.cn source ID."""
+
+    value = source_city_id.strip()
+    return WEATHER_SOURCE_CITY_ID_ALIASES.get(value.casefold(), value)

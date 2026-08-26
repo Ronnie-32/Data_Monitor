@@ -66,6 +66,27 @@ def test_repository_updates_state_and_delete_cascades_widget_rows(tmp_path):
     ).fetchone()[0] == 0
 
 
+def test_repository_migrates_legacy_12_column_profile_coordinates(tmp_path):
+    repository, connection = make_repository(tmp_path)
+    connection.execute(
+        "INSERT INTO profiles(id, name, is_builtin, created_at, updated_at, grid_columns) "
+        "VALUES (7, 'Legacy', 0, '2026-08-25T09:00:00', '2026-08-25T09:00:00', 12)"
+    )
+    connection.execute(
+        "INSERT INTO profile_widgets(profile_id, widget_key, visible, x, y, w, h) "
+        "VALUES (7, 'todo', 1, 1, 2, 5, 3)"
+    )
+    connection.commit()
+
+    state = repository.require(7).state
+
+    assert (state.widgets[0].x, state.widgets[0].y) == (4, 8)
+    assert (state.widgets[0].w, state.widgets[0].h) == (20, 12)
+    assert connection.execute(
+        "SELECT grid_columns FROM profiles WHERE id = 7"
+    ).fetchone()[0] == 48
+
+
 def test_repository_reads_only_profile_tables():
     source = open("src/deskboard/repositories/profile_repository.py", encoding="utf-8").read()
 

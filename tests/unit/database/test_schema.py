@@ -41,22 +41,23 @@ def test_connection_factory_enables_and_verifies_foreign_keys_per_connection(tmp
     assert database == tmp_path / "DeskBoard" / "data" / "deskboard.db"
 
 
-def test_v001_creates_exact_logical_tables_version_and_ownership(tmp_path):
+def test_current_schema_creates_exact_logical_tables_version_and_ownership(tmp_path):
     connection = open_migrated(tmp_path / "deskboard.db")
 
     assert user_tables(connection) == LOGICAL_TABLES
-    assert len(LOGICAL_TABLES) == 14
-    assert get_schema_version(connection) == 1
+    assert len(LOGICAL_TABLES) == 15
+    assert get_schema_version(connection) == 4
     assert REPOSITORY_TABLE_OWNERSHIP == {
         "SettingsRepository": frozenset({"app_settings"}),
         "TodoRepository": frozenset({"todos"}),
         "CourseRepository": frozenset(
             {
                 "semesters",
+                "timetable_schemes",
+                "timetable_scheme_periods",
                 "recurring_courses",
                 "course_cancellations",
                 "one_off_courses",
-                "class_periods",
             }
         ),
         "ProfileRepository": frozenset({"profiles", "profile_widgets"}),
@@ -89,11 +90,17 @@ def test_cancellation_period_and_profile_widget_constraints(tmp_path):
             "INSERT INTO course_cancellations(recurring_course_id, occurrence_date) "
             "VALUES (1, '2026-09-07')"
         )
-    for invalid_period in (0, 9):
+    connection.execute(
+        "INSERT INTO timetable_schemes("
+        "id, name, axis_mode, period_count, created_at, updated_at) "
+        "VALUES (1, 'Test scheme', 'custom_periods', 8, 'now', 'now')"
+    )
+    for invalid_period in (0, 25):
         with pytest.raises(sqlite3.IntegrityError):
             connection.execute(
-                "INSERT INTO class_periods(period_no, start_time, end_time) VALUES (?, ?, ?)",
-                (invalid_period, "08:00", "09:30"),
+                "INSERT INTO timetable_scheme_periods("
+                "scheme_id, period_no, start_time, end_time) VALUES (?, ?, ?, ?)",
+                (1, invalid_period, "08:00", "09:30"),
             )
     connection.execute(
         "INSERT INTO profiles(id, name, is_builtin, created_at, updated_at) "

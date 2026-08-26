@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Iterable
+from dataclasses import replace
 from datetime import datetime
 
 from deskboard.models.profile import (
     DEFAULT_PROFILE_NAME,
+    LEGACY_PROFILE_GRID_COLUMNS,
+    PROFILE_GRID_COLUMNS,
+    PROFILE_GRID_SCALE,
     Profile,
     ProfileState,
     ProfileWidgetState,
@@ -50,8 +54,8 @@ class ProfileRepository:
                 """
                 INSERT INTO profiles(
                     name, is_builtin, window_x, window_y, window_width, window_height,
-                    theme_key, panel_opacity, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    theme_key, font_key, panel_opacity, grid_columns, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     name,
@@ -61,7 +65,9 @@ class ProfileRepository:
                     state.window_width,
                     state.window_height,
                     state.theme_key,
+                    state.font_key,
                     state.panel_opacity,
+                    PROFILE_GRID_COLUMNS,
                     _datetime_text(now),
                     _datetime_text(now),
                 ),
@@ -101,7 +107,7 @@ class ProfileRepository:
     def list_profiles(self) -> list[Profile]:
         rows = self._connection.execute(
             f"SELECT {_PROFILE_COLUMNS} FROM profiles ORDER BY is_builtin DESC, id"
-        )
+        ).fetchall()
         return [self._profile_from_row(row) for row in rows]
 
     def save_state(self, profile_id: int, state: ProfileState, now: datetime) -> None:
@@ -111,7 +117,8 @@ class ProfileRepository:
                 """
                 UPDATE profiles
                 SET window_x = ?, window_y = ?, window_width = ?, window_height = ?,
-                    theme_key = ?, panel_opacity = ?, updated_at = ?
+                    theme_key = ?, font_key = ?, panel_opacity = ?, grid_columns = ?,
+                    updated_at = ?
                 WHERE id = ?
                 """,
                 (
@@ -120,7 +127,9 @@ class ProfileRepository:
                     state.window_width,
                     state.window_height,
                     state.theme_key,
+                    state.font_key,
                     state.panel_opacity,
+                    PROFILE_GRID_COLUMNS,
                     _datetime_text(now),
                     profile_id,
                 ),
@@ -207,12 +216,28 @@ class ProfileRepository:
             )
             for widget_row in widget_rows
         )
+        grid_columns = int(row[9])
+        if grid_columns == LEGACY_PROFILE_GRID_COLUMNS:
+            widgets = tuple(
+                replace(
+                    widget,
+                    x=widget.x * PROFILE_GRID_SCALE,
+                    y=widget.y * PROFILE_GRID_SCALE,
+                    w=widget.w * PROFILE_GRID_SCALE,
+                    h=widget.h * PROFILE_GRID_SCALE,
+                )
+                for widget in widgets
+            )
+            self._upgrade_legacy_grid(profile_id, widgets)
+        elif grid_columns != PROFILE_GRID_COLUMNS:
+            raise ValueError(f"Unsupported Profile grid topology: {grid_columns}")
         state = ProfileState(
             window_x=None if row[3] is None else int(row[3]),
             window_y=None if row[4] is None else int(row[4]),
             window_width=None if row[5] is None else int(row[5]),
             window_height=None if row[6] is None else int(row[6]),
             theme_key=str(row[7]),
+            font_key=str(row[12]),
             panel_opacity=float(row[8]),
             widgets=widgets,
         )
@@ -221,14 +246,36 @@ class ProfileRepository:
             name=str(row[1]),
             is_builtin=bool(row[2]),
             state=state,
-            created_at=datetime.fromisoformat(str(row[9])),
-            updated_at=datetime.fromisoformat(str(row[10])),
+            created_at=datetime.fromisoformat(str(row[10])),
+            updated_at=datetime.fromisoformat(str(row[11])),
         )
+
+    def _upgrade_legacy_grid(
+        self, profile_id: int, widgets: tuple[ProfileWidgetState, ...]
+    ) -> None:
+        try:
+            self._connection.execute("BEGIN IMMEDIATE")
+            cursor = self._connection.execute(
+                "UPDATE profiles SET grid_columns = ? WHERE id = ?",
+                (PROFILE_GRID_COLUMNS, profile_id),
+            )
+            if cursor.rowcount != 1:
+                self._connection.rollback()
+                raise LookupError(f"Profile {profile_id} does not exist")
+            self._connection.execute(
+                "DELETE FROM profile_widgets WHERE profile_id = ?", (profile_id,)
+            )
+            self._insert_widgets(profile_id, widgets)
+            self._connection.commit()
+        except BaseException:
+            if self._connection.in_transaction:
+                self._connection.rollback()
+            raise
 
 
 _PROFILE_COLUMNS = (
     "id, name, is_builtin, window_x, window_y, window_width, window_height, "
-    "theme_key, panel_opacity, created_at, updated_at"
+    "theme_key, panel_opacity, grid_columns, created_at, updated_at, font_key"
 )
 
 

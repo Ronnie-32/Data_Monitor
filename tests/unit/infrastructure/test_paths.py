@@ -2,8 +2,8 @@ from pathlib import Path
 
 from deskboard.infrastructure.paths import (
     app_data_root,
-    database_path,
     data_dir,
+    database_path,
     ensure_runtime_dirs,
     logs_dir,
 )

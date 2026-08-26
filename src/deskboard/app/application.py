@@ -6,6 +6,12 @@ from collections.abc import Callable
 from typing import Any, Protocol
 
 from deskboard.app.modes import AppMode
+from deskboard.app.startup import (
+    DayRolloverSchedulerLike,
+    StartupSettingsLike,
+    determine_startup,
+    remember_mode,
+)
 
 
 class QtApplicationLike(Protocol):
@@ -83,12 +89,16 @@ class DeskBoardApplication:
         settings_factory: SettingsFactory | None = None,
         tray_factory: TrayFactory | None = None,
         instance_guard: InstanceGuardLike,
+        startup_settings: StartupSettingsLike | None = None,
+        day_rollover_scheduler: DayRolloverSchedulerLike | None = None,
     ) -> None:
         self.qt_application = qt_application
         self.instance_guard = instance_guard
         self.qt_application.setQuitOnLastWindowClosed(False)
         self._dashboard_factory = dashboard_factory or self._default_dashboard_factory
         self._settings_factory = settings_factory or self._default_settings_factory
+        self._startup_settings = startup_settings
+        self._day_rollover_scheduler = day_rollover_scheduler
         self.dashboard = self._dashboard_factory()
         self._settings: SettingsLike | None = None
         self._mode = AppMode.INTERACTION
@@ -163,15 +173,23 @@ class DeskBoardApplication:
             )
         return self._settings
 
-    def start(self, *, open_settings: bool = False) -> None:
-        """Show the single Dashboard in the legal startup mode."""
+    def start(self, *, open_settings: bool | None = None) -> None:
+        """Show the single Dashboard and apply the persisted launch policy."""
         if not self._started:
-            self.set_mode(AppMode.INTERACTION)
+            decision = determine_startup(self._startup_settings)
+            should_open_settings = (
+                decision.open_settings if open_settings is None else open_settings
+            )
+            self.set_mode(decision.mode)
             self.dashboard.show()
             self.tray.sync_dashboard_visibility(True)
             self.tray.show()
+            if self._day_rollover_scheduler is not None:
+                self._day_rollover_scheduler.start()
             self._started = True
-        if open_settings:
+        else:
+            should_open_settings = bool(open_settings)
+        if should_open_settings:
             self.show_settings()
 
     def run(self) -> int:
@@ -181,6 +199,7 @@ class DeskBoardApplication:
         if not isinstance(mode, AppMode):
             raise TypeError("mode must be an AppMode")
         self._mode = mode
+        remember_mode(self._startup_settings, mode)
         self.dashboard.set_mode(mode)
         if self._settings is not None:
             self._settings.set_mode_state(mode)
@@ -220,6 +239,8 @@ class DeskBoardApplication:
         if self._exiting:
             return
         self._exiting = True
+        if self._day_rollover_scheduler is not None:
+            self._day_rollover_scheduler.stop()
         self.instance_guard.close()
         self.close_settings()
         self.dashboard.hide()

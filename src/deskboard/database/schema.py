@@ -6,8 +6,13 @@ import sqlite3
 from collections.abc import Callable
 
 from deskboard.database.migrations.v001_initial import apply_v001
+from deskboard.database.migrations.v002_grid_48 import apply_v002
+from deskboard.database.migrations.v003_profile_font import apply_v003
+from deskboard.database.migrations.v004_timetable_schemes import apply_v004
+from deskboard.database.migrations.v005_timetable_default_name import apply_v005
+from deskboard.database.migrations.v006_restore_scheme_one_name import apply_v006
 
-CURRENT_SCHEMA_VERSION = 1
+CURRENT_SCHEMA_VERSION = 6
 
 LOGICAL_TABLES = frozenset(
     {
@@ -15,10 +20,11 @@ LOGICAL_TABLES = frozenset(
         "app_settings",
         "todos",
         "semesters",
+        "timetable_schemes",
+        "timetable_scheme_periods",
         "recurring_courses",
         "course_cancellations",
         "one_off_courses",
-        "class_periods",
         "profiles",
         "profile_widgets",
         "weather_cities",
@@ -34,10 +40,11 @@ REPOSITORY_TABLE_OWNERSHIP = {
     "CourseRepository": frozenset(
         {
             "semesters",
+            "timetable_schemes",
+            "timetable_scheme_periods",
             "recurring_courses",
             "course_cancellations",
             "one_off_courses",
-            "class_periods",
         }
     ),
     "ProfileRepository": frozenset({"profiles", "profile_widgets"}),
@@ -46,7 +53,14 @@ REPOSITORY_TABLE_OWNERSHIP = {
     "NetworkRepository": frozenset({"network_cache", "network_state"}),
 }
 
-MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {1: apply_v001}
+MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {
+    1: apply_v001,
+    2: apply_v002,
+    3: apply_v003,
+    4: apply_v004,
+    5: apply_v005,
+    6: apply_v006,
+}
 
 
 class MigrationError(RuntimeError):
@@ -89,11 +103,8 @@ def migrate(connection: sqlite3.Connection) -> None:
         )
     if version == CURRENT_SCHEMA_VERSION:
         if tables != LOGICAL_TABLES:
-            raise MigrationError("Current schema table set does not match the V1 contract")
+            raise MigrationError("Current schema table set does not match the current contract")
         return
-    if version != 0:
-        raise MigrationError(f"Unsupported prior schema version: {version}")
-
     connection.execute("BEGIN IMMEDIATE")
     try:
         for target_version in range(version + 1, CURRENT_SCHEMA_VERSION + 1):
@@ -101,6 +112,10 @@ def migrate(connection: sqlite3.Connection) -> None:
             if migration is None:
                 raise MigrationError(f"Missing migration for version {target_version}")
             migration(connection)
+        connection.execute(
+            "UPDATE schema_meta SET schema_version = ? WHERE singleton = 1",
+            (CURRENT_SCHEMA_VERSION,),
+        )
         connection.commit()
     except BaseException:
         connection.rollback()

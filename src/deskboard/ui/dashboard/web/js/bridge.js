@@ -10,7 +10,11 @@ export function subscribeDashboardBridge(bridge, handlers) {
   bridge.todosChanged.connect(handlers.todosChanged);
   bridge.agendaChanged.connect(handlers.agendaChanged);
   bridge.weatherChanged.connect(handlers.weatherChanged);
+  bridge.financeChanged.connect(handlers.financeChanged);
   bridge.networkStatusChanged.connect(handlers.networkStatusChanged);
   bridge.timetableChanged.connect(handlers.timetableChanged);
   bridge.modeChanged.connect(handlers.modeChanged);
+  if (bridge.languageChanged && handlers.languageChanged) {
+    bridge.languageChanged.connect(handlers.languageChanged);
+  }
 }

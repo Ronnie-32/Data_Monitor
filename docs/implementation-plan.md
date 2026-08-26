@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Execute **one numbered task per session**. Read `AGENTS.md`, this task, and only the relevant parts of `docs/spec.md`. Do not start the next task automatically. Use TDD where applicable, systematic debugging for unexpected failures, and fresh verification evidence before any completion claim.
 
-**Goal:** Build a stable personal-use Windows DeskBoard V1 with Todo, semester/course scheduling, Today Agenda, current-week timetable, flexible Profile-based dashboard layout, weather, validated lightweight financial reference data, native Settings, tray integration, caching/status, and a standard Windows installer.
+**Goal:** Build a stable personal-use Windows DeskBoard V1 with Todo, semester/course scheduling, Today Agenda, current-week timetable, flexible Profile-based dashboard layout, customizable Dashboard themes/fonts, bilingual native Settings, weather, validated lightweight financial reference data, tray integration, caching/status, and a standard Windows installer.
 
 **Architecture:** PySide6 owns the Windows shell, one QWebEngineView hosts a local HTML/CSS/ES Modules/GridStack Dashboard, QWebChannel carries commands/events, application services own business rules, thin repositories own SQLite, direct-HTTP Providers normalize external data, and native PySide6 Settings reuses the same services.
 
@@ -24,6 +24,8 @@ This section is a convenience summary only. `docs/spec.md` remains authoritative
 - SQLite is the only persistent database.
 - No AKShare.
 - No cloud/account/sync/reminders/notifications/auto-update/portable/plugin system/multi-monitor/edge auto-hide in V1.
+- Dashboard themes may be light, dark, or high contrast; there is no user theme-editor or downloaded theme-pack feature.
+- Native Settings defaults to Simplified Chinese and can switch to English; the language value is persisted in SQLite.
 - All shipped network sources must work on ordinary mainland-China internet without VPN/proxy/Clash/end-user API key.
 - Fixed 60-minute network refresh.
 - Refresh failures preserve last successful cache.
@@ -179,7 +181,7 @@ The Dashboard must be capable of applying/removing pointer pass-through and the 
 
 - [ ] **Step 2: Add local WebEngine content**
 
-Bundle a local HTML page that renders three fake widgets in a 12-column GridStack and loads QWebChannel locally.
+Bundle a local HTML page that renders three fake widgets in a 48-column GridStack and loads QWebChannel locally.
 
 JavaScript must send one command to Python and display one Python-originated value.
 
@@ -586,7 +588,7 @@ Persistence ownership for all later tasks:
 |---|---|
 | `SettingsRepository` | `app_settings` |
 | `TodoRepository` | `todos` |
-| `CourseRepository` | `semesters`, `recurring_courses`, `course_cancellations`, `one_off_courses`, `class_periods` |
+| `CourseRepository` | `semesters`, `timetable_schemes`, `timetable_scheme_periods`, `recurring_courses`, `course_cancellations`, `one_off_courses` (legacy `class_periods` only during migration) |
 | `ProfileRepository` | `profiles`, `profile_widgets` |
 | `WeatherRepository` | `weather_cities` only |
 | `FinanceRepository` | `finance_preferences` only |
@@ -1044,7 +1046,7 @@ Acceptance:
 
 ## Task 14: GridStack Layout Editing and Dashboard Geometry
 
-**Goal:** Implement the approved 12-column layout editor, Dashboard move/resize behavior, Save/Cancel snapshot semantics, and Profile application.
+**Goal:** Implement the approved 48-column layout editor, Dashboard move/resize behavior, Save/Cancel snapshot semantics, and Profile application.
 
 ### References
 
@@ -1080,7 +1082,7 @@ Use only the matching case definitions from `docs/quality/test-matrix.md`; do no
 - [ ] **Step 1: Write tests for entering Layout Edit from Locked and Interaction modes**
 - [ ] **Step 2: Write tests proving Save and Cancel both restore the recorded previous daily mode**
 - [ ] **Step 3: Write bridge-contract tests for one layout snapshot/save transaction**
-- [ ] **Step 4: Implement fixed 12-column GridStack topology with move/resize disabled outside Layout Edit**
+- [ ] **Step 4: Implement fixed 48-column GridStack topology with move/resize disabled outside Layout Edit**
 - [ ] **Step 5: Implement outer Dashboard move/resize only in Layout Edit**
 - [ ] **Step 6: Implement pre-edit snapshot, Save, and Cancel without continuous SQLite writes while dragging; when built-in Default is active, Save must use a small native Save-As-Profile prompt rather than overwrite Default**
 - [ ] **Step 7: Apply Profile widget geometry/visibility and Dashboard geometry on switch/restart**
@@ -1397,23 +1399,28 @@ Using more than one official source internally is acceptable if Task 1 selected 
 
 **Branch A — source validated in Task 1:**
 
+Task 1 source-gate evidence accepts the Tencent public batch quote endpoint for
+Dow Jones, S&P 500, and Nasdaq Composite. The three U.S. items use the
+independent `us_indices` refresh group so the A-share `indices` registration
+cannot be overwritten.
+
 ### Verification IDs
 
 `AUT-PROV-01`, `MAN-PROV-05`, `REV-ARCH-01`, `REV-DEP-01`, `REV-PROV-01`, `REV-PROV-02`, `REV-SCOPE-01`
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1A: Write parser tests from Task 1 fixtures**
-- [ ] **Step 2A: Implement the validated normalized provider**
-- [ ] **Step 3A: Integrate with Task 15 cache/status pipeline**
-- [ ] **Step 4A: Run automated tests and one bounded mainland-China live smoke check**
+- [x] **Step 1A: Write parser tests from Task 1 fixtures**
+- [x] **Step 2A: Implement the validated normalized provider**
+- [x] **Step 3A: Integrate with Task 15 cache/status pipeline**
+- [x] **Step 4A: Run automated tests and one bounded mainland-China live smoke check**
 
 **Branch B — no acceptable source in Task 1:**
 
 - [ ] **Step 1B: Verify no U.S.-index catalog items are enabled/shipped**
 - [ ] **Step 2B: Verify the reserved `us_indices` widget type can remain hidden/unavailable without status failures or proxy prompts**
 
-- [ ] **Final Step: Stop**
+- [x] **Final Step: Stop**
 
 Do not add VPN/proxy configuration, end-user API keys/accounts, or a weaker source merely to avoid deferral.
 
@@ -1449,19 +1456,27 @@ marketState = open | closed | unknown
 secondaryText = "上一交易日收盘" only when reliably justified
 ```
 
+**FX display basis:**
+
+- Presenter consumes the normalized CNY-per-1-foreign-unit value.
+- When the normalized value is `>= 1`, `valueText` uses `1 foreign unit = N CNY`.
+- When the normalized value is `> 0` and `< 1`, `valueText` uses `1 CNY = N foreign units` with the reciprocal.
+- Invalid or non-positive values are unavailable and are never inverted.
+- The inversion is presentation-only; Provider/cache values, stable keys, and source quotation metadata remain unchanged.
+
 ### Verification IDs
 
 `AUT-BRIDGE-01..08`, `AUT-FIN-01..15`, `AUT-PRES-01..07`, `MAN-NET-01`, `MAN-UI-05`, `MAN-UI-12`, `MAN-UI-13`, `REV-ARCH-01..03`, `REV-SCOPE-01`, `REV-SCOPE-05`
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1: Write presenter tests for formatting/category filtering/order**
-- [ ] **Step 2: Write tests proving individual and overview widgets share one finance state/cache path**
-- [ ] **Step 3: Write tests for closed/unknown market labels; unknown must not be falsely labeled as previous-close**
-- [ ] **Step 4: Implement normalized presenter and Dashboard state integration**
-- [ ] **Step 5: Implement minimal no-chart/no-scroll finance renderers**
-- [ ] **Step 6: Implement size-based visible-item count using global preference order**
-- [ ] **Step 7: Verify Chinese-market red-up/green-down styling**
+- [x] **Step 1: Write presenter tests for formatting/category filtering/order, including the FX display-basis inversion rule**
+- [x] **Step 2: Write tests proving individual and overview widgets share one finance state/cache path**
+- [x] **Step 3: Write tests for closed/unknown market labels; unknown must not be falsely labeled as previous-close**
+- [x] **Step 4: Implement normalized presenter and Dashboard state integration**
+- [x] **Step 5: Implement minimal no-chart/no-scroll finance renderers**
+- [x] **Step 6: Implement size-based visible-item count using global preference order**
+- [x] **Step 7: Verify Chinese-market red-up/green-down styling**
 - [ ] **Step 8: Run automated and bounded visual acceptance**
 - [ ] **Step 9: Stop**
 
@@ -1490,15 +1505,18 @@ Widget duplication is visual only and must never schedule duplicate Provider req
 - Create/Modify: `src/deskboard/ui/dashboard/web/css/themes.css`
 - Modify relevant widget CSS/JS only for size-adaptive presentation
 - Modify Profile display-config handling only where required by approved visual modes
+- Modify: `src/deskboard/models/profile.py`, `src/deskboard/presentation/layout_state.py`, and `src/deskboard/repositories/profile_repository.py` for the approved 48-column geometry contract
+- Modify: `src/deskboard/database/schema.py`; create `src/deskboard/database/migrations/v002_grid_48.py` for legacy 12-column Profile migration
 
 **Must establish and record:**
 
 - default Profile visual arrangement;
+- approved 48-column horizontal and fine-grained vertical GridStack topology, including legacy Profile migration;
 - overall Dashboard minimum width/height;
 - final minimum readable size for each built-in widget type;
 - pixel thresholds used for compact/normal/expanded presentation where a widget needs them;
 - panel spacing/dividers/outer rounding baseline;
-- four light themes: Mist Blue, Mint Breeze, Almond Sand, Lavender Cloud;
+- initial light theme tokens and a later extensible theme catalog;
 - Profile opacity behavior;
 - completed Todo pale-green/check treatment;
 - financial red-up/green-down treatment;
@@ -1513,9 +1531,9 @@ Use only the matching case definitions from `docs/quality/test-matrix.md`; do no
 - [ ] **Step 1: Render all real V1 widget types with representative fixture/local data**
 - [ ] **Step 2: Establish the smallest readable Dashboard and per-widget sizes by visual acceptance rather than arbitrary constants**
 - [ ] **Step 3: Record accepted values/rationale in `docs/ui-readability-baseline.md`**
-- [ ] **Step 4: Implement the four light themes and shared visual tokens**
-- [ ] **Step 5: Implement size-adaptive widget presentation using actual pixel size; do not persist generic compact/normal/expanded state**
-- [ ] **Step 6: Verify transparent outer window, semi-transparent panel regions, subtle separators, minimal shadows, and no continuous decorative animation**
+- [x] **Step 4: Implement the initial light themes and shared visual tokens**
+- [x] **Step 5: Implement size-adaptive widget presentation using actual pixel size; do not persist generic compact/normal/expanded state**
+- [x] **Step 6: Verify transparent outer window, semi-transparent panel regions, subtle separators, minimal shadows, and no continuous decorative animation**
 - [ ] **Step 7: Perform visual/manual acceptance at representative small/normal/large Dashboard sizes**
 - [ ] **Step 8: Stop**
 
@@ -1559,15 +1577,15 @@ If the agent cannot truthfully judge the required visual acceptance in its envir
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1: Implement Settings sidebar/stack entries for General, Profiles, Weather, Finance**
-- [ ] **Step 2: Implement General controls using App/Settings services**
-- [ ] **Step 3: Implement Profile management against ProfileService only**
-- [ ] **Step 4: Implement Weather global city/primary controls against WeatherService only**
-- [ ] **Step 5: Implement Finance whitelist/order controls against FinanceService only**
-- [ ] **Step 6: Implement current-user Windows autostart toggle**
-- [ ] **Step 7: Run focused automated verification**
-- [ ] **Step 8: Perform native Settings manual smoke test**
-- [ ] **Step 9: Stop**
+- [x] **Step 1: Implement Settings sidebar/stack entries for General, Profiles, Weather, Finance**
+- [x] **Step 2: Implement General controls using App/Settings services**
+- [x] **Step 3: Implement Profile management against ProfileService only**
+- [x] **Step 4: Implement Weather global city/primary controls against WeatherService only**
+- [x] **Step 5: Implement Finance whitelist/order controls against FinanceService only**
+- [x] **Step 6: Implement current-user Windows autostart toggle**
+- [x] **Step 7: Run focused automated verification**
+- [x] **Step 8: Perform native Settings manual smoke test**
+- [x] **Step 9: Stop**
 
 ---
 
@@ -1605,11 +1623,11 @@ Use only the matching case definitions from `docs/quality/test-matrix.md`; do no
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1: Complete Todo Incomplete/Completed-history UI using TodoService**
-- [ ] **Step 2: Implement semester/course/period/cancellation/one-off editors using CourseService**
-- [ ] **Step 3: Implement Data Status with manual refresh controls and diagnostic state; verify the Dashboard itself exposes no refresh control**
-- [ ] **Step 4: Implement About/version page**
-- [ ] **Step 5: Run focused automated verification**
+- [x] **Step 1: Complete Todo Incomplete/Completed-history UI using TodoService**
+- [x] **Step 2: Implement semester/course/period/cancellation/one-off editors using CourseService**
+- [x] **Step 3: Implement Data Status with manual refresh controls and diagnostic state; verify the Dashboard itself exposes no refresh control**
+- [x] **Step 4: Implement About/version page**
+- [x] **Step 5: Run focused automated verification**
 - [ ] **Step 6: Perform native Settings manual smoke test**
 - [ ] **Step 7: Stop**
 
@@ -1738,14 +1756,14 @@ multi-hour / multi-day personal-use memory trend
 
 Use only the matching case definitions from `docs/quality/test-matrix.md`; do not load the whole matrix by default.
 
-- [ ] **Step 1: Run the full automated suite and production-build smoke checks before manual stability testing**
+- [x] **Step 1: Run the full automated suite and production-build smoke checks before manual stability testing**
 - [ ] **Step 2: Record a bounded baseline CPU/RAM snapshot for Locked, Interaction, hidden, and active-refresh states**
-- [ ] **Step 3: Write exact manual procedures, expected results, evidence fields, and failure-report format into `docs/v1-stability-checklist.md`**
-- [ ] **Step 4: Run only bounded acceptance checks that fit the current session**
-- [ ] **Step 5: For multi-hour/multi-day, sleep/wake, and naturally occurring boundary cases that cannot be truthfully observed now, report `AWAITING_MANUAL_ACCEPTANCE`; do not wait, poll, or keep the session running**
+- [x] **Step 3: Write exact manual procedures, expected results, evidence fields, and failure-report format into `docs/v1-stability-checklist.md`**
+- [x] **Step 4: Run only bounded acceptance checks that fit the current session**
+- [x] **Step 5: For multi-hour/multi-day, sleep/wake, and naturally occurring boundary cases that cannot be truthfully observed now, report `AWAITING_MANUAL_ACCEPTANCE`; do not wait, poll, or keep the session running**
 - [ ] **Step 6: When user evidence is later supplied, classify each scenario PASS/FAIL and use systematic debugging only for concrete failures**
 - [ ] **Step 7: Record known bounded limitations and accepted CPU/RAM observations**
-- [ ] **Step 8: Stop**
+- [x] **Step 8: Stop**
 
 A stable working-memory value slightly above the preferred ~200 MB guideline is not automatically a failure. Continuous substantial memory growth or persistent non-idle CPU is a blocker.
 
@@ -1785,6 +1803,183 @@ Use only the matching case definitions from `docs/quality/test-matrix.md`; do no
 
 ---
 
+---
+
+## Task 30: Settings Redesign, Dashboard Themes/Fonts, and Settings Localization
+
+**Goal:** Redesign the native Settings experience, add selectable Dashboard
+themes and installed-font choices, and make Settings default to Simplified
+Chinese with an English switch.
+
+### References
+
+- `docs/spec.md`: §10 Themes, Typography, and Visual Style; §13 Profiles; §19 Settings Window; §27 Testing and Acceptance.
+- `docs/ui-design.md`: visual tokens and the public design-system references used as inspiration.
+
+**Files:**
+
+- Modify: `src/deskboard/models/profile.py`, Profile repository/service/presentation, and SQLite migration files
+- Modify: `src/deskboard/ui/settings/window.py`, `general_page.py`, `profile_page.py`, and Settings localization/style helpers
+- Modify: Dashboard CSS/theme tokens and `web/js/app.js`
+- Modify: `README.md`
+- Create: `docs/ui-design.md` and focused Task 30 tests
+
+### Required behavior
+
+- Settings remains a native PySide6 window with the existing eight pages and
+  one Dashboard QWebEngineView only.
+- Settings has a clear sidebar/header/content hierarchy, readable controls,
+  visible focus states, and no continuous decorative animation.
+- Profile UI can select any shipped theme and font; saving applies the choice to
+  the Dashboard and persists it per Profile.
+- The shipped catalog includes the original eight light/dark/high-contrast themes
+  plus four original token-based visual themes (Terra Signal, Frontier Foundry,
+  Astral Transit, and Coastal Tide). No theme editor,
+  remote asset download, third-party game art, or new frontend framework is added.
+- Settings starts in Simplified Chinese when no language value exists. Switching
+  to English updates native Settings chrome/static controls immediately and
+  persists `ui.language` in SQLite.
+- README and the About/disclaimer wording are Chinese and state that the
+  project is for non-commercial learning and discussion; this does not waive
+  upstream data-source terms or the public-release gate.
+
+### Verification IDs
+
+`AUT-PROFILE-17`, `AUT-SET-02`, `AUT-SET-14`, `AUT-UI-01`, `MAN-UI-03`,
+`MAN-SET-01`, `MAN-SET-14`, `MAN-REL-01..06`, `REV-ARCH-01`, `REV-DB-02`,
+`REV-SCOPE-01`
+
+- [ ] **Step 1: Write red tests for language defaults, theme/font validation, and Profile persistence**
+- [ ] **Step 2: Implement SQLite migration and application/presentation contracts**
+- [ ] **Step 3: Implement Dashboard theme/font tokens and Settings visual redesign**
+- [ ] **Step 4: Implement native Settings Chinese/English switching**
+- [ ] **Step 5: Update Chinese README/design notes and run focused verification**
+- [ ] **Step 6: Perform bounded real-Windows Settings/Dashboard visual smoke test**
+- [ ] **Step 7: Stop; do not bypass Task 28/29 release gates**
+
+---
+
+## Task 31: Timetable Schemes, Semester Binding, and Synchronized Settings/Layout Preview
+
+**Goal:** Make timetable time axes configurable per reusable timetable scheme
+and selectable per semester, while preserving the existing eight-period
+behavior by default. Also finish the two visual interaction gaps found during
+Task 30 acceptance: the Settings palette must preview the selected Profile
+theme synchronously, and Layout Edit must temporarily turn the shell-bar area
+into a responsive edit bar without covering the Dashboard grid.
+
+### Scope guard
+
+This task changes the course/timetable configuration model and its Settings/
+Dashboard presentation contracts. It does not add a new widget type, Profile
+data ownership, timetable week navigation, cloud sync, external theme assets,
+or a second QWebEngineView. Timetable schemes remain global data bound to
+semesters; a Profile continues to store only visual/spatial Dashboard state.
+
+### References
+
+- `docs/spec.md`: §5.3 Layout Edit Mode; §9.3 Profile ownership; §10 Themes;
+  §12 Semester and Course Domain; §14 Weekly Timetable; §19 Settings Window;
+  §21 Database Model; §22 Bridge; §27 Testing and Acceptance.
+- `docs/quality/requirements-traceability.md`: course, timetable, theme,
+  Settings, layout, and database requirement rows.
+- `docs/quality/test-matrix.md`: timetable, Layout Edit, Settings, and theme
+  manual gates.
+
+**Files:**
+
+- Modify: SQLite schema/migration code, semester/course models, repositories,
+  and CourseService contracts.
+- Modify: native Courses Settings page and its localization/validation text;
+  add scheme list, per-semester binding, create/duplicate/rename/delete, and
+  custom/uniform axis editors using explicit Save/Cancel for structured edits.
+- Modify: timetable service/presenter, Dashboard bridge state/commands, and
+  timetable Web rendering/CSS as needed for dynamic axis metadata.
+- Modify: Settings shell/theme application path so an unsaved Profile theme
+  preview updates the Settings palette immediately while the initial safe
+  palette remains the fallback.
+- Modify: Layout Edit shell-bar markup/CSS/native hit-test contract so edit
+  mode temporarily replaces the normal shell-bar content with a responsive
+  primary Save/Cancel row and a scrollable visibility row; controls cannot
+  overlap the grid, and only blank instruction space remains draggable.
+- Add focused Task 31 unit/integration/static-contract tests and update the
+  affected documentation/acceptance evidence.
+
+### Required behavior
+
+- A timetable scheme is reusable global configuration. A semester references
+  zero or one scheme; multiple semesters may reuse the same scheme. Profile
+  switching never changes the selected scheme or its period data.
+- `custom_periods` supports a validated `period_count` from 1 through 24 and
+  exactly one child row per period number. Rows require increasing,
+  non-overlapping actual start/end times; gaps are allowed and no default
+  school times may be fabricated.
+- `uniform_day` is the explicit “do not use school period times” option. It
+  stores no period rows, uses configurable `day_start`/`day_end` (default
+  `00:00`–`24:00`), and divides that continuous range into the configured
+  number of visual guide bands. The bands do not turn into artificial school
+  periods; course/Todo blocks remain positioned by actual clock time.
+- The current/default behavior remains unchanged. A complete legacy
+  `class_periods` configuration is migrated without changing its values into a
+  built-in `方案1` custom scheme and existing semesters are bound to it;
+  supported upgrades normalize the old built-in labels `Default方案` and
+  `Legacy 8 periods` to `方案1`. A fresh or
+  incomplete configuration remains unconfigured and shows the existing
+  configure-first state until the user saves a scheme.
+- The timetable uses the active semester's scheme for bounds and reference
+  metadata. Custom axes use first-period start through last-period end;
+  uniform axes use the configured day range; events outside the range are
+  excluded; courses are never snapped to guide bands. Today Agenda remains
+  independent of timetable-axis configuration.
+- Settings Courses exposes enough state to understand which scheme is bound
+  to each semester. Invalid partial/duplicate/overlap/out-of-range edits do
+  not become active. Deleting a bound scheme requires confirmation and, after
+  confirmation, leaves affected semesters unbound in the configure-first
+  state. The semester, recurring-course, one-off-course, and scheme lists remain
+  compact six-to-seven-row areas so the editor and validation feedback remain
+  visible. Each item stays on one line and uses right-side ellipsis with a
+  tooltip for content that exceeds the available width.
+- Dashboard widget and weekly-timetable typography scales from the nearest
+   live card/container width: readable minimum/maximum bounds change smoothly,
+   compact finance name/value pairs stay on one line, and only genuinely
+   overlong content is elided or wrapped.
+- Selecting a Profile theme for preview updates both Dashboard and the native
+  Settings shell/page semantic colors in the same interaction. The preview is
+  not persisted until Save Appearance; cancelling/closing without save keeps
+  the stored Profile theme and the next Settings open restores it. Before a
+  theme is loaded, Settings uses the initial safe Mist Blue/light palette and
+  never inherits black Windows night-mode surfaces.
+- In Layout Edit, the normal title/mode label, status indicator, and
+  `Open Settings` control temporarily yield the shell-bar area to a responsive
+  edit bar. Save/Cancel stay visible in its primary row; visibility controls
+  use a separate row that wraps at narrow widths without a horizontal
+  scrollbar. The edit bar never consumes Dashboard grid space, its
+  buttons/checkboxes never start a window drag, and its blank title/instruction
+  area remains draggable through the native window bridge. Save or Cancel
+  restores the normal shell-bar content.
+
+### Verification IDs
+
+`AUT-TSCHEME-01..14`, `AUT-TTSCHEME-01..06`, `AUT-UI-02`,
+`AUT-LAYOUT-02`, `MAN-TT-08..11`, `MAN-SET-05`, `MAN-SET-15`,
+`MAN-LAYOUT-04`, `REV-ARCH-01`, `REV-DB-02`, `REV-SCOPE-01`
+
+- [x] **Step 1: Write red tests for scheme validation, semester binding,
+  legacy migration, custom/uniform axis metadata, Settings palette preview,
+  and toolbar placement contracts**
+- [x] **Step 2: Implement schema migration and model/repository/service
+  ownership without exposing raw SQLite rows to the Dashboard**
+- [x] **Step 3: Implement Courses Settings scheme management, validation,
+  semester binding, explicit Save/Cancel, and localization**
+- [x] **Step 4: Update timetable presenter/bridge/Web rendering for both axis
+  modes, dynamic period counts, bounds, and configure-first behavior**
+- [x] **Step 5: Synchronize Settings theme preview and finish responsive
+  Layout-Edit shell-bar/native hit-test behavior**
+- [ ] **Step 6: Run focused automated/static verification, then perform the
+  bounded real-Windows GUI acceptance steps**
+- [ ] **Step 7: Record manual evidence and stop; do not bypass Task 28/29
+  stability/source/release gates or push/publish in this task**
+
 # Plan-Wide Verification Map
 
 | Requirement area | Primary task(s) | Verification |
@@ -1793,15 +1988,15 @@ Use only the matching case definitions from `docs/quality/test-matrix.md`; do no
 | One WebEngine/QWebChannel viability | 0, 3, 11-12 | spike + shell + bridge integration |
 | Tray/single instance | 4 | unit contracts + real Windows smoke |
 | GridStack topology/editing | 0, 14 | spike + bridge/manual acceptance |
-| UI readability/minimums/themes | 23 | visual/readability gate |
+| UI readability/minimums/themes | 23, 30, 31 | visual/readability gate |
 | PyInstaller WebEngine viability | 0, 27 | built executable |
 | Mainland-China source gate | 1, 16, 19-21, 29 | real direct-network acceptance |
-| SQLite/migrations/ownership | 5 | unit/repository tests |
+| SQLite/migrations/ownership | 5, 31 | unit/repository tests |
 | Todo semantics | 6-8, 25 | unit + Dashboard/native Settings acceptance |
-| Course semantics | 9, 25 | unit/repository + Settings acceptance |
-| Agenda/timetable semantics | 10-12, 23 | unit + visual acceptance |
+| Course semantics | 9, 25, 31 | unit/repository + Settings acceptance |
+| Agenda/timetable semantics | 10-12, 23, 31 | unit + visual acceptance |
 | Profiles/persistence | 13 | unit/repository tests |
-| Layout/Profile application | 14 | bridge + restart/manual acceptance |
+| Layout/Profile application | 14, 31 | bridge + restart/manual acceptance |
 | Network cache/refresh/status | 15 | service/repository tests |
 | Weather | 16-17 | fixture/domain/presenter + bounded live smoke |
 | Finance catalog/preferences | 18 | unit tests |
@@ -1809,7 +2004,8 @@ Use only the matching case definitions from `docs/quality/test-matrix.md`; do no
 | China indices | 20 | fixture + bounded live smoke |
 | U.S. indices | 21 | validated source or explicit deferral |
 | Finance UI | 22-23 | presenter/state + visual acceptance |
-| Native Settings | 24-25 | focused tests + native manual smoke |
+| Native Settings | 24-25, 30-31 | focused tests + native manual smoke |
+| Settings localization/visual preferences | 30-31 | focused persistence tests + native manual smoke |
 | Startup/day rollover | 26 | pure tests + real runtime |
 | Installer | 27 | clean install smoke |
 | Long-run stability | 28 | user/manual checklist + metrics |

@@ -78,6 +78,46 @@ def test_default_is_created_and_cannot_be_overwritten_or_deleted(resources):
         service.delete(default.id)
 
 
+def test_default_layout_is_restored_from_user_profile_one_without_changing_rules():
+    connection = connect_database(":memory:")
+    migrate(connection)
+    clock = FakeClock(datetime(2026, 8, 21, 9, 30))
+    service = ProfileService(
+        ProfileRepository(connection), clock, SettingsRepository(connection)
+    )
+    source = service.save_as("1", sample_state())
+    service.save_as("2", ProfileState(theme_key="lavender_cloud"))
+    ProfileRepository(connection).save_state(
+        service.default_profile.id,
+        ProfileState(
+            theme_key="rose_dusk",
+            font_key="yahei",
+            panel_opacity=0.65,
+        ),
+        clock.now(),
+    )
+
+    reloaded = ProfileService(
+        ProfileRepository(connection), clock, SettingsRepository(connection)
+    )
+
+    assert reloaded.default_profile.name == "Default"
+    assert reloaded.default_profile.is_builtin is True
+    assert reloaded.default_profile.state.window_x == source.state.window_x
+    assert reloaded.default_profile.state.window_y == source.state.window_y
+    assert reloaded.default_profile.state.window_width == source.state.window_width
+    assert reloaded.default_profile.state.window_height == source.state.window_height
+    assert reloaded.default_profile.state.widgets == source.state.widgets
+    assert reloaded.default_profile.state.theme_key == "rose_dusk"
+    assert reloaded.default_profile.state.font_key == "yahei"
+    assert reloaded.default_profile.state.panel_opacity == 0.65
+    assert reloaded.get(source.id).state == source.state
+    assert reloaded.current_profile.name == "2"
+    reloaded.restore_default()
+    with pytest.raises(BuiltinProfileError, match="Default"):
+        reloaded.save_current(sample_state(theme_key="lavender_cloud"))
+
+
 def test_save_as_switches_and_persists_visual_state(resources):
     service, connection, clock = resources
     created = service.save_as("Study", sample_state())
@@ -147,6 +187,14 @@ def test_profile_state_does_not_capture_global_data_and_themes_are_exact():
         "mint_breeze",
         "almond_sand",
         "lavender_cloud",
+        "ocean_night",
+        "graphite_night",
+        "rose_dusk",
+        "high_contrast",
+        "terra_signal",
+        "endfield_industrial",
+        "starrail_astral",
+        "wuthering_tide",
     )
     state = ProfileState()
     assert not hasattr(state, "todos")

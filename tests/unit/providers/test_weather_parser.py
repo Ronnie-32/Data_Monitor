@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from deskboard.models.weather import Weather
+from deskboard.models.weather import Weather, WeatherCity
 from deskboard.providers.errors import ProviderDataError, ProviderParseError
 from deskboard.providers.weather.provider import WeatherProvider, parse_weather
 
@@ -88,6 +88,10 @@ class FakeWeatherHttpClient:
             return fixture("weather_com_cn_shanghai.html").decode("utf-8")
         if "101020100" in url:
             return fixture("weather_com_cn_shanghai_forecast.html").decode("utf-8")
+        if "101190401" in url and "weather_index" in url:
+            return fixture("weather_com_cn_shanghai.html").decode("utf-8")
+        if "101190401" in url:
+            return fixture("weather_com_cn_shanghai_forecast.html").decode("utf-8")
         raise AssertionError(f"unexpected URL: {url}")
 
 
@@ -105,3 +109,31 @@ def test_provider_fetches_only_the_selected_fixed_source_and_returns_no_persiste
     assert len(client.calls) == 4
     assert all("Referer" in kwargs["headers"] for _url, kwargs in client.calls)
     assert all("weather.com.cn" in url for url, _kwargs in client.calls)
+
+
+def test_provider_can_replace_runtime_city_catalog_without_recreating_provider():
+    provider = WeatherProvider()
+
+    provider.set_cities(
+        [
+            WeatherCity("suzhou", "苏州", "101190401", 0, True),
+            WeatherCity("beijing", "北京", "101010100", 1, False),
+        ]
+    )
+
+    assert [city.city_key for city in provider.cities] == ["suzhou", "beijing"]
+    assert [item.key for item in provider.items] == ["suzhou", "beijing"]
+
+
+def test_provider_resolves_suzhou_city_alias_before_fetching_source_urls():
+    client = FakeWeatherHttpClient()
+    provider = WeatherProvider(
+        http_client=client,
+        cities=(WeatherCity("suzhou", "苏州", "suzhou", 0, True),),
+    )
+
+    result = provider.fetch()
+
+    assert result.items[0].ok
+    assert result.items[0].payload["city"] == "苏州"
+    assert all("101190401" in url for url, _kwargs in client.calls)

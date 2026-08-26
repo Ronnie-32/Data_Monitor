@@ -104,3 +104,17 @@ def test_dashboard_web_assets_define_single_page_view_only_timetable_overlay():
     assert "get_occurrences" not in timetable
     assert "timetable_service=timetable_service" in window_source
     assert "TimetableService(todo_service, course_service)" in main_source
+
+
+def test_timetable_typography_scales_up_when_the_overlay_has_room():
+    css = Path("src/deskboard/ui/dashboard/web/css/timetable.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert "container-type: inline-size" in css
+    assert "@container (min-width: 900px)" in css
+    assert "@container (min-width: 1200px)" in css
+    assert ".timetable-event" in css
+    assert "font-size: 13px" in css
+    assert "font-size: 14px" in css
+    assert ".timetable-event-meta" in css

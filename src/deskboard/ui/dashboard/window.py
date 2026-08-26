@@ -9,11 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QEvent, Qt, QTimer, QUrl, Slot
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QInputDialog, QMainWindow
 
 from deskboard.app.modes import AppMode
+from deskboard.app.startup import recover_window_geometry
 from deskboard.infrastructure.clock import Clock
 from deskboard.models.profile import ProfileState
 from deskboard.presentation.layout_state import (
@@ -26,15 +28,18 @@ from deskboard.presentation.layout_state import (
 from deskboard.ui.dashboard.bridge import (
     AgendaServiceLike,
     DashboardBridge,
+    FinancePresenterLike,
     NetworkStatusServiceLike,
     ProfileServiceLike,
     RefreshServiceLike,
+    SettingsServiceLike,
     TimetableServiceLike,
     TodoServiceLike,
     WeatherPresenterLike,
 )
 
 WM_NCHITTEST = 0x0084
+WM_NCLBUTTONDOWN = 0x00A1
 WM_SYSCOMMAND = 0x0112
 HTCAPTION = 2
 HTLEFT = 10
@@ -45,8 +50,17 @@ HTTOPRIGHT = 14
 HTBOTTOM = 15
 HTBOTTOMLEFT = 16
 HTBOTTOMRIGHT = 17
-RESIZE_BORDER = 8
-DRAG_REGION_HEIGHT = 44
+# Keep the native window gutter outside GridStack's 4px item resize-handle
+# inset, otherwise resizing an edge widget can resize/reposition the window.
+RESIZE_BORDER = 4
+DRAG_REGION_TOP = 32
+DRAG_REGION_COMPACT_TOP = 12
+DRAG_REGION_HEIGHT = 30
+EDIT_TOOLBAR_PRIMARY_HEIGHT = 46
+EDIT_TOOLBAR_SECONDARY_HEIGHT = 44
+DRAG_REGION_SIDE_INSET = 18
+DRAG_REGION_LEFT_RATIO = 1 / 3
+DRAG_REGION_RIGHT_RATIO = 1 / 4
 SC_MINIMIZE = 0xF020
 LOGGER = logging.getLogger(__name__)
 
@@ -122,11 +136,39 @@ def _log_last_error(operation: str) -> None:
     LOGGER.error("%s failed; GetLastError=%d", operation, ctypes.get_last_error())
 
 
+def begin_native_window_drag(hwnd: int, screen_x: int, screen_y: int) -> bool:
+    """Start a native caption drag after a WebEngine toolbar pointer press."""
+
+    if os.name != "nt" or not hwnd:
+        return False
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    release_capture = user32.ReleaseCapture
+    release_capture.argtypes = []
+    release_capture.restype = wintypes.BOOL
+    send_message = user32.SendMessageW
+    send_message.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint,
+        ctypes.c_size_t,
+        ctypes.c_ssize_t,
+    ]
+    send_message.restype = ctypes.c_ssize_t
+    point = (int(screen_x) & 0xFFFF) | ((int(screen_y) & 0xFFFF) << 16)
+    release_capture()
+    send_message(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, point)
+    return True
+
+
 def native_hit_test(
     mode: AppMode,
     screen_x: int,
     screen_y: int,
     window_rect: tuple[int, int, int, int],
+    toolbar_rect: tuple[int, int, int, int] | None = None,
+    toolbar_rects: tuple[tuple[int, int, int, int], ...] | None = None,
 ) -> int | None:
     """Return a hit code using one physical Win32 screen-coordinate space."""
     window_left, window_top, window_right, window_bottom = window_rect
@@ -156,9 +198,67 @@ def native_hit_test(
         return HTTOP
     if bottom:
         return HTBOTTOM
-    if y < DRAG_REGION_HEIGHT:
+    if toolbar_rects is not None:
+        for reserved_rect in toolbar_rects:
+            toolbar_left, toolbar_top, toolbar_right, toolbar_bottom = reserved_rect
+            if toolbar_left <= x < toolbar_right and toolbar_top <= y < toolbar_bottom:
+                return None
+        if toolbar_rects and toolbar_rects[0][1] <= y < (
+            toolbar_rects[0][1] + EDIT_TOOLBAR_PRIMARY_HEIGHT
+        ):
+            return HTCAPTION
+        return None
+    if toolbar_rect is not None:
+        toolbar_left, toolbar_top, toolbar_right, toolbar_bottom = toolbar_rect
+        if toolbar_left <= x < toolbar_right and toolbar_top <= y < toolbar_bottom:
+            return None
+    drag_left = max(
+        DRAG_REGION_SIDE_INSET,
+        min(180, int(width * DRAG_REGION_LEFT_RATIO)),
+    )
+    drag_right = max(
+        DRAG_REGION_SIDE_INSET,
+        min(140, int(width * DRAG_REGION_RIGHT_RATIO)),
+    )
+    drag_top = DRAG_REGION_COMPACT_TOP if width <= 420 else DRAG_REGION_TOP
+    if (
+        drag_top <= y < drag_top + DRAG_REGION_HEIGHT
+        and drag_left <= x < width - drag_right
+    ):
         return HTCAPTION
     return None
+
+
+def layout_toolbar_rect(width: int) -> tuple[int, int, int, int]:
+    """Return the primary action rectangle for legacy hit-test callers."""
+
+    return layout_toolbar_control_rects(width)[0]
+
+
+def layout_toolbar_control_rects(
+    width: int,
+) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
+    """Return action and visibility rectangles in window-client coordinates."""
+
+    drag_top = DRAG_REGION_COMPACT_TOP if width <= 420 else DRAG_REGION_TOP
+    shell_inset = 12 if width <= 420 else 32
+    shell_left = min(shell_inset, max(0, width // 2))
+    shell_right = max(shell_left, width - shell_inset)
+    action_width = 150 if width <= 420 else 190
+    action_left = max(shell_left, shell_right - action_width)
+    action_rect = (
+        action_left,
+        drag_top,
+        shell_right,
+        drag_top + EDIT_TOOLBAR_PRIMARY_HEIGHT,
+    )
+    visibility_rect = (
+        shell_left,
+        drag_top + EDIT_TOOLBAR_PRIMARY_HEIGHT - 2,
+        shell_right,
+        drag_top + EDIT_TOOLBAR_PRIMARY_HEIGHT + EDIT_TOOLBAR_SECONDARY_HEIGHT,
+    )
+    return action_rect, visibility_rect
 
 
 class DashboardWindow(QMainWindow):
@@ -173,8 +273,10 @@ class DashboardWindow(QMainWindow):
         profile_service: ProfileServiceLike | None = None,
         clock: Clock | None = None,
         weather_presenter: WeatherPresenterLike | None = None,
+        finance_presenter: FinancePresenterLike | None = None,
         network_status_service: NetworkStatusServiceLike | None = None,
         refresh_service: RefreshServiceLike | None = None,
+        settings_service: SettingsServiceLike | None = None,
     ) -> None:
         super().__init__()
         self._mode = AppMode.INTERACTION
@@ -188,6 +290,7 @@ class DashboardWindow(QMainWindow):
         self._daily_visibility_guard.timeout.connect(self._guard_daily_visibility)
         self.setWindowTitle("DeskBoard")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setMinimumSize(360, 220)
         self.resize(760, 460)
         self._apply_profile_window_geometry()
 
@@ -202,12 +305,15 @@ class DashboardWindow(QMainWindow):
             profile_service=profile_service,
             clock=clock,
             weather_presenter=weather_presenter,
+            finance_presenter=finance_presenter,
             network_status_service=network_status_service,
             refresh_service=refresh_service,
+            settings_service=settings_service,
         )
         self.bridge.layoutEditRequested.connect(self.enter_layout_edit)
         self.bridge.layoutSaveRequested.connect(self._save_layout_from_web)
         self.bridge.layoutCancelRequested.connect(self.cancel_layout_edit)
+        self.bridge.windowDragRequested.connect(self._begin_window_drag)
         self.bridge.set_profile_state(self._active_profile_state)
         self.channel = QWebChannel(self.view.page())
         self.channel.registerObject("bridge", self.bridge)
@@ -227,6 +333,11 @@ class DashboardWindow(QMainWindow):
     @property
     def profile_state(self) -> ProfileState:
         return self._active_profile_state
+
+    def refresh_date_dependent_state(self) -> None:
+        """Recompute local-date Dashboard views after Python crosses midnight."""
+
+        self.bridge.publish_todos()
 
     @Slot(object)
     def set_mode(self, mode: AppMode) -> None:
@@ -248,6 +359,11 @@ class DashboardWindow(QMainWindow):
 
         if self._mode is not AppMode.LAYOUT_EDIT:
             self.set_mode(AppMode.LAYOUT_EDIT)
+
+    @Slot(int, int)
+    def _begin_window_drag(self, screen_x: int, screen_y: int) -> None:
+        if self._mode is AppMode.LAYOUT_EDIT:
+            begin_native_window_drag(int(self.winId()), screen_x, screen_y)
 
     def cancel_layout_edit(self) -> None:
         """Restore the pre-edit in-memory snapshot without writing SQLite."""
@@ -272,6 +388,14 @@ class DashboardWindow(QMainWindow):
         self._apply_profile_window_geometry()
         self.bridge.set_profile_state(self._active_profile_state)
         self.bridge.publish_profile_state(self._active_profile_state)
+
+    def preview_profile_state(self, state: ProfileState) -> None:
+        """Preview theme/font changes without persisting or changing geometry."""
+
+        if not isinstance(state, ProfileState):
+            raise TypeError("state must be a ProfileState")
+        self.bridge.set_profile_state(state)
+        self.bridge.publish_profile_state(state)
 
     def _begin_layout_edit(self) -> None:
         if self._layout_snapshot is not None:
@@ -344,14 +468,24 @@ class DashboardWindow(QMainWindow):
     def _apply_profile_window_geometry(self) -> None:
         state = self._active_profile_state
         if None not in (state.window_x, state.window_y, state.window_width, state.window_height):
-            self._apply_window_geometry(
-                (
-                    state.window_x,
-                    state.window_y,
-                    state.window_width,
-                    state.window_height,
-                )
+            geometry = (
+                state.window_x,
+                state.window_y,
+                state.window_width,
+                state.window_height,
             )
+            work_area = self._primary_work_area()
+            if work_area is not None:
+                geometry = recover_window_geometry(geometry, work_area)
+            self._apply_window_geometry(geometry)
+
+    @staticmethod
+    def _primary_work_area() -> tuple[int, int, int, int] | None:
+        screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return None
+        rect = screen.availableGeometry()
+        return rect.x(), rect.y(), rect.width(), rect.height()
 
     def _apply_window_geometry(self, geometry: tuple[int, int, int, int]) -> None:
         self.setGeometry(*geometry)
@@ -519,6 +653,7 @@ class DashboardWindow(QMainWindow):
                     global_x,
                     global_y,
                     (rect.left, rect.top, rect.right, rect.bottom),
+                    toolbar_rects=layout_toolbar_control_rects(rect.right - rect.left),
                 )
                 if hit is not None:
                     return True, hit

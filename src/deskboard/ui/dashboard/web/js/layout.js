@@ -1,43 +1,51 @@
-const GRID_COLUMNS = 12;
+import { normalizeLanguage, widgetLabel } from "./i18n.js";
+
+const GRID_COLUMNS = 48;
 export const LAYOUT_EDGE_PADDING_PX = 0;
-export const LAYOUT_HORIZONTAL_GAP_PX = 4;
-const MIN_CELL_HEIGHT_PX = 48;
+export const LAYOUT_HORIZONTAL_GAP_PX = 2;
+export const LAYOUT_VERTICAL_GAP_PX = 2;
+const MIN_CELL_HEIGHT_PX = 20;
+const MAX_CELL_HEIGHT_PX = 32;
+const MAX_INFO_WIDGET_ROWS = 3;
+const WIDGET_LABELS = {
+  todo: "待办",
+  today_agenda: "今日日程",
+  weather: "天气",
+  gold: "黄金",
+  fx: "汇率",
+  china_indices: "A 股指数",
+  us_indices: "美国指数",
+  finance_overview: "金融总览",
+};
 
 const FALLBACK_LAYOUT = [
-  { widgetKey: "todo", visible: true, x: 1, y: 0, w: 5, h: 6 },
-  { widgetKey: "today_agenda", visible: true, x: 6, y: 0, w: 5, h: 6 },
-  { widgetKey: "weather", visible: true, x: 1, y: 6, w: 10, h: 3 },
+  { widgetKey: "todo", visible: true, x: 0, y: 0, w: 24, h: 12 },
+  { widgetKey: "today_agenda", visible: true, x: 24, y: 0, w: 24, h: 12 },
+  { widgetKey: "weather", visible: true, x: 0, y: 12, w: 48, h: 3 },
+  { widgetKey: "gold", visible: true, x: 0, y: 15, w: 12, h: 3 },
+  { widgetKey: "fx", visible: true, x: 12, y: 15, w: 12, h: 3 },
+  { widgetKey: "china_indices", visible: true, x: 24, y: 15, w: 12, h: 3 },
+  { widgetKey: "us_indices", visible: true, x: 36, y: 15, w: 12, h: 3 },
+  { widgetKey: "finance_overview", visible: false, x: 0, y: 18, w: 48, h: 3 },
 ];
 
-export function computeMaxRows(containerHeight, cellHeight) {
-  const height = Number(containerHeight);
-  const cell = Number(cellHeight);
-  if (!Number.isFinite(height) || !Number.isFinite(cell) || cell <= 0) return 1;
-  return Math.max(1, Math.floor(Math.max(0, height) / cell));
+export function computePreferredCellHeight(containerWidth, columns = GRID_COLUMNS) {
+  const width = Number(containerWidth);
+  const columnCount = Math.max(1, integerValue(columns, GRID_COLUMNS));
+  if (!Number.isFinite(width) || width <= 0) return MIN_CELL_HEIGHT_PX;
+  const preferred = Math.round((width / columnCount) * 0.9);
+  return Math.min(MAX_CELL_HEIGHT_PX, Math.max(MIN_CELL_HEIGHT_PX, preferred));
 }
 
-export function computeGridMetrics(containerHeight, preferredCellHeight, requiredRows = 1) {
-  const height = Number(containerHeight);
-  const preferred = Number(preferredCellHeight);
-  if (!Number.isFinite(height) || height <= 0) {
-    return { maxRows: 1, cellHeight: 1 };
-  }
-  requiredRows = Math.max(1, integerValue(requiredRows, 1));
-  if (!Number.isFinite(preferred) || preferred <= 0) {
-    return { maxRows: requiredRows, cellHeight: height / requiredRows };
-  }
-  const naturalRows = computeMaxRows(height, preferred);
-  const maxRows = Math.max(naturalRows, requiredRows);
-  return { maxRows, cellHeight: height / maxRows };
-}
-
-export function clampGridItemToBoard(item, maxRows, columns = GRID_COLUMNS) {
-  const rowLimit = Math.max(1, integerValue(maxRows, 1));
+export function clampGridItemToBoard(item, maxRows = 0, columns = GRID_COLUMNS) {
+  const rowLimit = Math.max(0, integerValue(maxRows, 0));
   const columnLimit = Math.max(1, integerValue(columns, GRID_COLUMNS));
   const w = Math.min(columnLimit, Math.max(1, integerValue(item?.w, 1)));
-  const h = Math.min(rowLimit, Math.max(1, integerValue(item?.h, 1)));
+  const rawHeight = Math.max(1, integerValue(item?.h, 1));
+  const h = rowLimit > 0 ? Math.min(rowLimit, rawHeight) : rawHeight;
   const x = Math.min(columnLimit - w, Math.max(0, integerValue(item?.x, 0)));
-  const y = Math.min(rowLimit - h, Math.max(0, integerValue(item?.y, 0)));
+  const rawY = Math.max(0, integerValue(item?.y, 0));
+  const y = rowLimit > 0 ? Math.min(rowLimit - h, rawY) : rawY;
   return { x, y, w, h };
 }
 
@@ -48,6 +56,7 @@ function integerValue(value, fallback) {
 
 export function createLayoutController(bridge) {
   const gridElement = document.getElementById("widgets-grid");
+  const gridViewport = document.getElementById("widgets-grid-viewport");
   const toolbar = document.getElementById("layout-toolbar");
   const visibilityControls = document.getElementById("layout-visibility-controls");
   const saveButton = document.getElementById("layout-save");
@@ -55,30 +64,53 @@ export function createLayoutController(bridge) {
 
   const grid = window.GridStack.init(
     {
-      column: 12,
+      column: GRID_COLUMNS,
+      // Preserve intentional blank space and the user's x/y choice. The
+      // collision engine still pushes an intersecting card out of the way.
       float: true,
+      push: true,
+      pushResize: true,
+      alwaysShowResizeHandle: true,
+      resizable: { handles: "n,e,s,w,ne,se,sw,nw" },
+      maxRow: 0,
       disableOneColumnMode: true,
       animate: false,
       margin: LAYOUT_EDGE_PADDING_PX,
-      cellHeight: 72,
+      cellHeight: 24,
     },
     gridElement,
   );
   gridElement.dataset.columns = String(GRID_COLUMNS);
 
   function applyHorizontalGap() {
-    const gap = `${LAYOUT_HORIZONTAL_GAP_PX}px`;
-    gridElement.style.setProperty("--gs-item-margin-top", "0px");
-    gridElement.style.setProperty("--gs-item-margin-bottom", "0px");
-    gridElement.style.setProperty("--gs-item-margin-left", gap);
-    gridElement.style.setProperty("--gs-item-margin-right", gap);
+    const horizontalGap = `${LAYOUT_HORIZONTAL_GAP_PX}px`;
+    const verticalGap = `${LAYOUT_VERTICAL_GAP_PX}px`;
+    gridElement.style.setProperty("--gs-item-margin-top", verticalGap);
+    gridElement.style.setProperty("--gs-item-margin-bottom", verticalGap);
+    gridElement.style.setProperty("--gs-item-margin-left", horizontalGap);
+    gridElement.style.setProperty("--gs-item-margin-right", horizontalGap);
   }
 
   applyHorizontalGap();
 
   let editing = false;
   let profile = null;
-  let boardRowCount = 1;
+  let language = "zh_CN";
+
+  function installWindowDrag() {
+    toolbar?.addEventListener("pointerdown", (event) => {
+      if (!editing || event.button !== 0) return;
+      const target = event.target;
+      if (
+        target
+        && typeof target.closest === "function"
+        && target.closest("button, input, label, select, textarea, a")
+      ) return;
+      if (typeof bridge.beginWindowDrag !== "function") return;
+      event.preventDefault();
+      bridge.beginWindowDrag(Math.trunc(event.screenX), Math.trunc(event.screenY));
+    });
+  }
 
   function items() {
     return Array.from(gridElement.querySelectorAll(".grid-stack-item"));
@@ -104,17 +136,86 @@ export function createLayoutController(bridge) {
     item.setAttribute("aria-hidden", visible === false ? "true" : "false");
   }
 
-  function bottomRow(item) {
-    return Math.max(0, integerValue(item?.y, 0)) + Math.max(1, integerValue(item?.h, 1));
+  function nodesOverlap(left, right) {
+    return (
+      left.x < right.x + right.w
+      && left.x + left.w > right.x
+      && left.y < right.y + right.h
+      && left.y + left.h > right.y
+    );
   }
 
-  function currentContentRows() {
+  function repairOverlappingNodes() {
     const nodes = grid.engine?.nodes || [];
-    return Math.max(1, ...nodes.map(bottomRow));
+    const maxPasses = Math.max(1, nodes.length * nodes.length);
+    for (let pass = 0; pass < maxPasses; pass += 1) {
+      let repaired = false;
+      for (let index = 0; index < nodes.length; index += 1) {
+        for (let other = index + 1; other < nodes.length; other += 1) {
+          const left = nodes[index];
+          const right = nodes[other];
+          if (!nodesOverlap(left, right)) continue;
+
+          // Preserve the user's horizontal choice. Only move the later
+          // colliding item down, instead of globally reflowing the board.
+          const moving = left.y > right.y
+            || (left.y === right.y && left.x > right.x)
+            ? left
+            : right;
+          const anchor = moving === left ? right : left;
+          grid.update(moving.el, {
+            x: moving.x,
+            y: Math.max(moving.y, anchor.y + anchor.h),
+            w: moving.w,
+            h: moving.h,
+          });
+          repaired = true;
+          break;
+        }
+        if (repaired) break;
+      }
+      if (!repaired) return;
+    }
   }
 
-  function stateContentRows(states) {
-    return Math.max(1, ...Array.from(states.values()).map(bottomRow));
+  function fitInformationWidgets() {
+    if (!grid.engine || !gridElement.clientWidth) return;
+    const cellHeight = Number(grid.getCellHeight?.(true));
+    if (!Number.isFinite(cellHeight) || cellHeight <= 0) return;
+
+    const requestedSizes = [];
+    items().forEach((item) => {
+      if (!item.querySelector(".info-widget")) return;
+      const list = item.querySelector(".weather-cities, .finance-items");
+      const node = item.gridstackNode;
+      if (!list || !node || item.classList.contains("layout-item-hidden")) return;
+      const contentHeight = Number(list.scrollHeight || 0);
+      if (!Number.isFinite(contentHeight) || contentHeight <= 0) return;
+      const requiredRows = Math.min(
+        MAX_INFO_WIDGET_ROWS,
+        Math.max(1, Math.ceil((contentHeight + LAYOUT_VERTICAL_GAP_PX * 2) / cellHeight)),
+      );
+      if (requiredRows > node.h) {
+        requestedSizes.push({ item, node, requiredRows });
+      }
+    });
+    if (!requestedSizes.length) {
+      syncVisibleGridHeight();
+      return;
+    }
+
+    grid.batchUpdate();
+    requestedSizes.forEach(({ item, node, requiredRows }) => {
+      grid.update(item, {
+        x: node.x,
+        y: node.y,
+        w: node.w,
+        h: requiredRows,
+      });
+    });
+    grid.batchUpdate(false);
+    repairOverlappingNodes();
+    syncVisibleGridHeight();
   }
 
   function applyProfile(nextProfile) {
@@ -122,20 +223,23 @@ export function createLayoutController(bridge) {
     const states = new Map(
       (profile.widgets || []).map((item) => [item.widgetKey || item.widget_key, item]),
     );
-    updateCellHeight(stateContentRows(states));
+    updateCellHeight();
     grid.batchUpdate();
     items().forEach((item) => {
       const state = stateFor(widgetKey(item), states);
-      const geometry = clampGridItemToBoard(state, currentMaxRows());
+      const geometry = clampGridItemToBoard(state);
       grid.update(item, geometry);
       applyVisible(item, state.visible !== false);
     });
     grid.batchUpdate(false);
+    repairOverlappingNodes();
+    updateGridBounds();
+    fitInformationWidgets();
+    syncVisibleGridHeight();
     renderVisibilityControls();
   }
 
   function snapshot() {
-    const maxRows = currentMaxRows();
     return {
       columnCount: GRID_COLUMNS,
       widgets: items().map((item) => {
@@ -145,7 +249,7 @@ export function createLayoutController(bridge) {
           y: node.y ?? item.getAttribute("gs-y") ?? 0,
           w: node.w ?? item.getAttribute("gs-w") ?? 1,
           h: node.h ?? item.getAttribute("gs-h") ?? 1,
-        }, maxRows);
+        });
         return {
           widgetKey: widgetKey(item),
           visible: !item.classList.contains("layout-item-hidden"),
@@ -165,8 +269,16 @@ export function createLayoutController(bridge) {
       const checkbox = document.createElement("input");
       checkbox.type = "checkbox";
       checkbox.checked = !item.classList.contains("layout-item-hidden");
-      checkbox.addEventListener("change", () => applyVisible(item, checkbox.checked));
-      label.append(checkbox, document.createTextNode(widgetKey(item)));
+      checkbox.addEventListener("change", () => {
+        applyVisible(item, checkbox.checked);
+        fitInformationWidgets();
+        syncVisibleGridHeight();
+      });
+      const key = widgetKey(item);
+      label.append(
+        checkbox,
+        document.createTextNode(widgetLabel(key, language) || WIDGET_LABELS[key] || key),
+      );
       visibilityControls.append(label);
     });
   }
@@ -180,41 +292,34 @@ export function createLayoutController(bridge) {
     } else {
       grid.disable();
     }
+    syncVisibleGridHeight();
     document.body.dataset.layoutEditing = editing ? "true" : "false";
     renderVisibilityControls();
   }
 
-  function updateCellHeight(requiredRows = 1) {
+  function setLanguage(nextLanguage) {
+    language = normalizeLanguage(nextLanguage);
+    renderVisibilityControls();
+  }
+
+  function updateCellHeight() {
     if (!gridElement.clientWidth || typeof grid.cellHeight !== "function") return;
-    const cellHeight = Math.max(
-      MIN_CELL_HEIGHT_PX,
-      Math.round((gridElement.clientWidth / GRID_COLUMNS) * 0.72),
-    );
-    const metrics = computeGridMetrics(
-      gridElement.clientHeight,
-      cellHeight,
-      Math.max(boardRowCount, requiredRows, currentContentRows()),
-    );
-    boardRowCount = metrics.maxRows;
-    grid.cellHeight(metrics.cellHeight);
-    applyHorizontalGap();
-    updateGridBounds(metrics.maxRows);
-  }
-
-  function currentMaxRows() {
-    if (!gridElement.clientHeight) {
-      return integerValue(grid.engine?.maxRow ?? grid.opts?.maxRow, 1);
+    const cellHeight = computePreferredCellHeight(gridElement.clientWidth);
+    const currentCellHeight = Number(grid.getCellHeight?.(true));
+    if (!Number.isFinite(currentCellHeight) || Math.abs(currentCellHeight - cellHeight) > 0.5) {
+      grid.cellHeight(cellHeight);
     }
-    return Math.max(boardRowCount, currentContentRows());
+    applyHorizontalGap();
+    syncVisibleGridHeight();
   }
 
-  function updateGridBounds(maxRows = currentMaxRows()) {
-    if (!gridElement.clientHeight || !grid.engine) return;
-    grid.opts.maxRow = maxRows;
-    grid.engine.maxRow = maxRows;
+  function updateGridBounds() {
+    if (!grid.engine) return;
+    grid.opts.maxRow = 0;
+    grid.engine.maxRow = 0;
     grid.batchUpdate();
     grid.engine.nodes.forEach((node) => {
-      const bounded = clampGridItemToBoard(node, maxRows);
+      const bounded = clampGridItemToBoard(node);
       if (node.x !== bounded.x || node.y !== bounded.y || node.w !== bounded.w || node.h !== bounded.h) {
         grid.update(node.el, bounded);
       }
@@ -222,14 +327,32 @@ export function createLayoutController(bridge) {
     grid.batchUpdate(false);
   }
 
+  function syncVisibleGridHeight() {
+    if (!grid.engine) return;
+    const cellHeight = Number(grid.getCellHeight?.(true));
+    if (!Number.isFinite(cellHeight) || cellHeight <= 0) return;
+    const visibleNodes = grid.engine.nodes.filter(
+      (node) => !node.el?.classList.contains("layout-item-hidden"),
+    );
+    const rowCount = visibleNodes.reduce(
+      (maximum, node) => Math.max(maximum, node.y + node.h),
+      0,
+    );
+    gridElement.style.height = rowCount > 0 ? `${rowCount * cellHeight}px` : "0px";
+  }
+
   grid.on("change", () => {
-    const contentRows = currentContentRows();
-    if (contentRows > boardRowCount) {
-      boardRowCount = contentRows;
-      updateCellHeight(contentRows);
-    }
     // Dragging is render-only. Python receives one complete snapshot on Save.
   });
+  function finishGridInteraction() {
+    repairOverlappingNodes();
+    updateGridBounds();
+    updateCellHeight();
+    fitInformationWidgets();
+    syncVisibleGridHeight();
+  }
+  grid.on("dragstop", finishGridInteraction);
+  grid.on("resizestop", finishGridInteraction);
   saveButton?.addEventListener("click", () => {
     if (editing) bridge.saveLayout(snapshot());
   });
@@ -237,12 +360,19 @@ export function createLayoutController(bridge) {
     if (editing) bridge.cancelLayoutEdit();
   });
   if (typeof ResizeObserver !== "undefined") {
-    new ResizeObserver(updateCellHeight).observe(gridElement);
+    new ResizeObserver(() => {
+      updateCellHeight();
+      fitInformationWidgets();
+      syncVisibleGridHeight();
+    }).observe(gridViewport || gridElement);
   }
+
+  installWindowDrag();
 
   return {
     applyProfile,
     setMode,
+    setLanguage,
     snapshot,
     getProfile: () => profile,
   };
