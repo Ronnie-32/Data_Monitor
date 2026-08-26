@@ -1,0 +1,175 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">DeskBoard 项目结构与使用路径</title>
+  <desc id="desc">DeskBoard 将桌面看板、设置中心、本机 SQLite 数据和天气金融参考信息组织在一起。</desc>
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eef5fb"/>
+    </linearGradient>
+    <linearGradient id="dashboard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#173b63"/>
+      <stop offset="1" stop-color="#2563a6"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#18324d" flood-opacity="0.12"/>
+    </filter>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#18324d" flood-opacity="0.10"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#5b8dbd"/>
+    </marker>
+    <marker id="arrowTeal" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#3a9a92"/>
+    </marker>
+    <style>
+      .font { font-family: Inter, "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+      .title { font-size: 29px; font-weight: 750; letter-spacing: 0.5px; }
+      .subtitle { font-size: 15px; }
+      .section { font-size: 18px; font-weight: 700; }
+      .label { font-size: 14px; font-weight: 650; }
+      .small { font-size: 12px; }
+      .tiny { font-size: 11px; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="650" rx="28" fill="url(#canvas)"/>
+  <circle cx="1120" cy="42" r="100" fill="#dcecf8" opacity="0.55"/>
+  <circle cx="1080" cy="620" r="150" fill="#e1f2ef" opacity="0.65"/>
+
+  <g class="font" fill="#17324d">
+    <text x="54" y="62" class="title">DeskBoard</text>
+    <text x="54" y="90" class="subtitle" fill="#5d7184">把待办、课程与参考信息放到桌面上</text>
+    <g transform="translate(932 43)">
+      <rect width="210" height="34" rx="17" fill="#ffffff" stroke="#d8e5ef"/>
+      <circle cx="20" cy="17" r="6" fill="#3a9a92"/>
+      <text x="36" y="22" class="small" fill="#456579">WINDOWS 10 / 11 · 本地运行</text>
+    </g>
+  </g>
+
+  <!-- Dashboard card -->
+  <g filter="url(#shadow)">
+    <rect x="44" y="132" width="535" height="306" rx="22" fill="url(#dashboard)"/>
+    <rect x="44" y="132" width="535" height="72" rx="22" fill="#102f50" opacity="0.48"/>
+    <rect x="44" y="181" width="535" height="23" fill="#102f50" opacity="0.48"/>
+  </g>
+  <g class="font" fill="#ffffff">
+    <circle cx="80" cy="168" r="15" fill="#79d0c5"/>
+    <path d="M73 168l5 5 9-10" fill="none" stroke="#173b63" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="108" y="168" class="section">Dashboard</text>
+    <text x="108" y="188" class="small" fill="#c9dced">日常查看 · 一眼了解今天</text>
+    <text x="510" y="171" class="tiny" text-anchor="end" fill="#b7d0e5">INTERACTION</text>
+  </g>
+
+  <g class="font" filter="url(#softShadow)">
+    <rect x="68" y="227" width="151" height="174" rx="16" fill="#ffffff"/>
+    <rect x="234" y="227" width="151" height="174" rx="16" fill="#ffffff"/>
+    <rect x="400" y="227" width="151" height="174" rx="16" fill="#ffffff"/>
+    <g transform="translate(88 249)">
+      <circle cx="15" cy="15" r="15" fill="#e5f1ff"/>
+      <path d="M10 15h10M15 10v10" stroke="#3479bd" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="42" y="20" class="label" fill="#17324d">Todo</text>
+      <text x="0" y="62" class="small" fill="#5d7184">快速添加与完成</text>
+      <text x="0" y="84" class="small" fill="#5d7184">管理今天的计划</text>
+      <rect x="0" y="112" width="105" height="7" rx="3.5" fill="#dfeaf3"/>
+      <rect x="0" y="112" width="68" height="7" rx="3.5" fill="#4d91cf"/>
+    </g>
+    <g transform="translate(254 249)">
+      <circle cx="15" cy="15" r="15" fill="#e6f6f2"/>
+      <path d="M8 12h14M8 18h14M11 8v12" stroke="#3a9a92" stroke-width="2.2" stroke-linecap="round"/>
+      <text x="42" y="20" class="label" fill="#17324d">Courses</text>
+      <text x="0" y="62" class="small" fill="#5d7184">查看当前周课表</text>
+      <text x="0" y="84" class="small" fill="#5d7184">课程冲突可见</text>
+      <rect x="0" y="112" width="105" height="7" rx="3.5" fill="#dfeaf3"/>
+      <rect x="0" y="112" width="85" height="7" rx="3.5" fill="#58b4a4"/>
+    </g>
+    <g transform="translate(420 249)">
+      <circle cx="15" cy="15" r="15" fill="#fff1d9"/>
+      <path d="M9 11h12v11H9zM12 8v6M18 8v6" fill="none" stroke="#c8871d" stroke-width="2.2" stroke-linecap="round"/>
+      <text x="42" y="20" class="label" fill="#17324d">Agenda</text>
+      <text x="0" y="62" class="small" fill="#5d7184">课程与计划事项</text>
+      <text x="0" y="84" class="small" fill="#5d7184">按时间集中查看</text>
+      <rect x="0" y="112" width="105" height="7" rx="3.5" fill="#dfeaf3"/>
+      <rect x="0" y="112" width="49" height="7" rx="3.5" fill="#e5a43c"/>
+    </g>
+  </g>
+
+  <!-- Settings card -->
+  <g filter="url(#shadow)">
+    <rect x="621" y="132" width="535" height="220" rx="22" fill="#ffffff" stroke="#d8e5ef"/>
+    <rect x="621" y="132" width="535" height="72" rx="22" fill="#eef6fb"/>
+    <rect x="621" y="181" width="535" height="23" fill="#eef6fb"/>
+  </g>
+  <g class="font">
+    <circle cx="657" cy="168" r="15" fill="#dbeafe"/>
+    <path d="M657 159v18M648 168h18" stroke="#3479bd" stroke-width="2.4" stroke-linecap="round"/>
+    <text x="685" y="168" class="section" fill="#17324d">Settings</text>
+    <text x="685" y="188" class="small" fill="#5d7184">低频配置 · 保存你的使用偏好</text>
+    <g transform="translate(650 236)">
+      <rect width="220" height="40" rx="12" fill="#f7fafc" stroke="#e2ebf2"/>
+      <circle cx="23" cy="20" r="8" fill="#5b8dbd"/>
+      <text x="43" y="25" class="label" fill="#3f596e">General</text>
+      <text x="113" y="25" class="tiny" fill="#8193a1">显示 · 语言 · 自启动</text>
+    </g>
+    <g transform="translate(886 236)">
+      <rect width="220" height="40" rx="12" fill="#f7fafc" stroke="#e2ebf2"/>
+      <circle cx="23" cy="20" r="8" fill="#7c6bc4"/>
+      <text x="43" y="25" class="label" fill="#3f596e">Profiles</text>
+      <text x="115" y="25" class="tiny" fill="#8193a1">主题 · 布局 · 字体</text>
+    </g>
+    <g transform="translate(650 288)">
+      <rect width="220" height="40" rx="12" fill="#f7fafc" stroke="#e2ebf2"/>
+      <circle cx="23" cy="20" r="8" fill="#3a9a92"/>
+      <text x="43" y="25" class="label" fill="#3f596e">Courses</text>
+      <text x="115" y="25" class="tiny" fill="#8193a1">学期 · 节次 · 课程</text>
+    </g>
+    <g transform="translate(886 288)">
+      <rect width="220" height="40" rx="12" fill="#f7fafc" stroke="#e2ebf2"/>
+      <circle cx="23" cy="20" r="8" fill="#e5a43c"/>
+      <text x="43" y="25" class="label" fill="#3f596e">Finance</text>
+      <text x="115" y="25" class="tiny" fill="#8193a1">项目 · 顺序 · 状态</text>
+    </g>
+  </g>
+
+  <!-- Reference card -->
+  <g filter="url(#softShadow)">
+    <rect x="621" y="377" width="535" height="61" rx="18" fill="#eaf7f4" stroke="#c9e9e2"/>
+  </g>
+  <g class="font">
+    <circle cx="659" cy="408" r="16" fill="#ffffff"/>
+    <path d="M653 411c3-8 10-8 13-2 3 5 8 4 9 0" fill="none" stroke="#3a9a92" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="689" y="404" class="label" fill="#236b66">Weather · Gold · FX · Indices</text>
+    <text x="689" y="423" class="small" fill="#547d7a">公开网络参考信息 · 失败时保留上一份成功缓存</text>
+    <text x="1119" y="413" class="tiny" text-anchor="end" fill="#3a9a92">参考信息</text>
+  </g>
+
+  <!-- Bottom data and workflow -->
+  <path d="M305 438 C305 466 266 466 266 493" fill="none" stroke="#5b8dbd" stroke-width="2.5" stroke-dasharray="6 7" marker-end="url(#arrowBlue)"/>
+  <path d="M790 352 C790 430 562 430 562 493" fill="none" stroke="#3a9a92" stroke-width="2.5" stroke-dasharray="6 7" marker-end="url(#arrowTeal)"/>
+  <g class="font" filter="url(#softShadow)">
+    <rect x="44" y="496" width="350" height="105" rx="18" fill="#ffffff" stroke="#d8e5ef"/>
+    <rect x="425" y="496" width="350" height="105" rx="18" fill="#ffffff" stroke="#d8e5ef"/>
+    <rect x="806" y="496" width="350" height="105" rx="18" fill="#173b63"/>
+  </g>
+  <g class="font">
+    <circle cx="78" cy="530" r="14" fill="#e5f1ff"/>
+    <path d="M72 530h12M78 524v12" stroke="#3479bd" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="105" y="532" class="section" fill="#17324d">本机保存</text>
+    <text x="68" y="562" class="small" fill="#5d7184">SQLite · Todo · 课程 · Profile</text>
+    <text x="68" y="582" class="small" fill="#5d7184">缓存与日志均位于本机数据目录</text>
+
+    <circle cx="459" cy="530" r="14" fill="#e6f6f2"/>
+    <path d="M453 532c4-9 10-9 14-2 3 5 7 4 9 0" fill="none" stroke="#3a9a92" stroke-width="2.2" stroke-linecap="round"/>
+    <text x="486" y="532" class="section" fill="#17324d">网络参考</text>
+    <text x="449" y="562" class="small" fill="#5d7184">按固定周期刷新，不阻塞界面</text>
+    <text x="449" y="582" class="small" fill="#5d7184">仅作日常查看与学习研究参考</text>
+
+    <text x="840" y="530" class="section" fill="#ffffff">使用路径</text>
+    <text x="840" y="563" class="label" fill="#b9d2e7">下载安装</text>
+    <text x="918" y="563" class="label" fill="#b9d2e7">→</text>
+    <text x="945" y="563" class="label" fill="#b9d2e7">完成配置</text>
+    <text x="1034" y="563" class="label" fill="#b9d2e7">→</text>
+    <text x="1060" y="563" class="label" fill="#79d0c5">开始使用</text>
+    <text x="840" y="584" class="small" fill="#91b2ca">Interaction 日常使用 · Layout Edit 调整布局</text>
+  </g>
+</svg>
