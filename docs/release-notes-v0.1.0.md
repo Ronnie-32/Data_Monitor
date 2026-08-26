@@ -16,7 +16,7 @@ DeskBoard 是一个面向 Windows 10/11 64 位的本地桌面信息看板，包�
 ## 下载
 
 - `DeskBoard-Setup-0.1.0.exe`
-- SHA-256：`DAF3500E2F43540B0C7589E7EA40E8CA7B943A586EC9EAB71EED67DE66C288EF`
+- SHA-256：`4F73473027021D2D3206A2AA2D1117323D4197846903DAB4E2EC16BF683C1FC8`
 
 ## 使用边界
 
@@ -30,6 +30,6 @@ DeskBoard 是一个面向 Windows 10/11 64 位的本地桌面信息看板，包�
 - PyInstaller onedir 和 Inno Setup 编译成功。
 - 打包目录中的 `sqlite3.dll` 与构建环境来源文件 SHA-256 一致。
 - 打包 `_sqlite3` 可直接加载，SQLite 版本为 `3.45.3`。
-- 版本对应源码提交：`33a5cf3`。
+- 安装器构建对应的源码提交：`024fa78`。
 
 更多边界和来源记录见 [README](../README.md)、[数据源审计](data-sources.md) 和 [发布检查清单](release-checklist.md)。
