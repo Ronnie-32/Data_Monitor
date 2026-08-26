@@ -2,6 +2,9 @@
 
 DeskBoard 是一个面向 Windows 10/11 64 位的本地桌面信息看板。它把个人待办、课程安排、今日 Agenda、天气和少量金融参考信息放在桌面上，适合日常查看，不需要账号、云端服务或常驻浏览器。
 
+[![下载学习预览版](https://img.shields.io/badge/下载-DeskBoard%20v0.1.0-2563eb?logo=windows&logoColor=white)](https://github.com/Ronnie-32/Data_Monitor/releases/tag/v0.1.0)
+[![平台](https://img.shields.io/badge/平台-Windows%2010%2F11%20x64-0f766e)](https://github.com/Ronnie-32/Data_Monitor)
+
 > 当前状态：学习向开源代码仓库。源码、文档和自建安装包流程用于学习、研究与技术探讨；在稳定性、来源和条款复核完成前，不将当前项目表述为正式数据服务或生产级发行版，也不要用于交易、风控或其他需要受监管数据质量的场景。
 
 本项目仅用于非商业学习、研究与技术探讨，不提供交易、投资、天气安全或其他专业建议。项目不对第三方数据的访问、缓存、署名、展示或再分发作明示或默示的授权承诺；使用者应自行核验来源条款和适用法律。
@@ -13,11 +16,24 @@ DeskBoard 是一个面向 Windows 10/11 64 位的本地桌面信息看板。它�
 - 想保存不同的桌面布局、主题和字体。
 - 想在本机保存数据，不使用账号、云同步或远程数据库。
 
+## 一眼看懂
+
+Dashboard 负责日常查看，Settings 负责低频配置；课程、待办和布局数据保存在本机，天气与金融参考信息由网络来源提供。
+
+```mermaid
+flowchart LR
+    A["Dashboard<br/>桌面看板"] --> B["Todo · Courses · Agenda"]
+    A --> C["Weather · Finance"]
+    D["Settings<br/>设置中心"] --> E["Profile · Courses · Finance"]
+    E --> F["SQLite<br/>本机数据"]
+    C --> G["公开数据来源"]
+```
+
 ## 安装与第一次启动
 
 ### 安装版（推荐）
 
-从项目发布页下载 `DeskBoard-Setup-x.y.z.exe` 后：
+从[项目发布页](https://github.com/Ronnie-32/Data_Monitor/releases)下载 `DeskBoard-Setup-x.y.z.exe` 后：
 
 1. 双击安装包，按向导安装到当前用户目录；正常运行不需要管理员权限。
 2. 从开始菜单或桌面快捷方式启动 DeskBoard。
@@ -25,7 +41,7 @@ DeskBoard 是一个面向 Windows 10/11 64 位的本地桌面信息看板。它�
 4. 在 `Weather`、`Finance`、`Courses` 和 `Todo` 中完成自己的配置。
 5. 回到 Dashboard，日常使用 `Interaction` 模式；只在调整布局时使用 `Layout Edit`。
 
-仓库默认不提交 `build/`、`dist/` 等本地构建产物。维护者可按“从源码构建”章节生成同名安装包。
+维护者可按“从源码构建”章节生成同名安装包。
 
 ### 三种模式
 
@@ -128,8 +144,6 @@ $env:PYTHONPATH = (Resolve-Path 'src').Path
 .\scripts\smoke_test.ps1 -DisableQtWebEngineSandbox
 ```
 
-`build/` 和 `dist/` 只属于本机生成物，已在 `.gitignore` 中排除。正式发行前还必须在干净 Windows 用户环境中验证安装、启动、非管理员运行、自启动和卸载后的数据保留。
-
 ## 相关文档
 
 - [产品规范](docs/spec.md)
@@ -143,6 +157,4 @@ $env:PYTHONPATH = (Resolve-Path 'src').Path
 
 ## 维护者说明
 
-DeskBoard 使用 PySide6、单个 QWebEngineView、本地 HTML/CSS/ES Modules、GridStack、SQLite 和 direct HTTP Provider。Python 是业务真相，Dashboard JavaScript 只负责渲染和轻量交互。项目不使用 AKShare、运行时 CDN、云服务、账号体系或自动更新。
-
-在 Task 28 稳定性证据和 Task 29 数据源/条款门禁关闭前，仓库可作为学习向源代码公开，但不应宣传为稳定 V1、实时数据服务或已取得第三方来源授权的正式发行版。
+DeskBoard 使用 PySide6、单个 QWebEngineView、本地 HTML/CSS/ES Modules、GridStack、SQLite 和 direct HTTP Provider。Python 是业务真相，Dashboard JavaScript 只负责渲染和轻量交互。
