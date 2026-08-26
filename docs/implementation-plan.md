@@ -1919,13 +1919,15 @@ semesters; a Profile continues to store only visual/spatial Dashboard state.
   `00:00`–`24:00`), and divides that continuous range into the configured
   number of visual guide bands. The bands do not turn into artificial school
   periods; course/Todo blocks remain positioned by actual clock time.
-- The current/default behavior remains unchanged. A complete legacy
-  `class_periods` configuration is migrated without changing its values into a
-  built-in `方案1` custom scheme and existing semesters are bound to it;
-  supported upgrades normalize the old built-in labels `Default方案` and
-  `Legacy 8 periods` to `方案1`. A fresh or
-  incomplete configuration remains unconfigured and shows the existing
-  configure-first state until the user saves a scheme.
+- A fresh installation seeds exactly one built-in editable `UIBE`
+  `custom_periods` sample scheme with eight rows and one active sample semester
+  named `样例` bound to it. A complete legacy `class_periods` configuration is
+  migrated without changing its values into that UIBE scheme and existing
+  semesters are bound to it; incomplete legacy data receives the same sample
+  defaults. Supported upgrades normalize generated labels `方案1`,
+  `Default方案`, and `Legacy 8 periods` to `UIBE`, rename the legacy sample
+  semester `大三上` to `样例`, and remove only an unbound identical `UIBE copy`.
+  Other user-created schemes and semester titles remain untouched.
 - The timetable uses the active semester's scheme for bounds and reference
   metadata. Custom axes use first-period start through last-period end;
   uniform axes use the configured day range; events outside the range are

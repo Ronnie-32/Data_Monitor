@@ -35,11 +35,115 @@ def test_fresh_migration_commits_current_version_and_second_run_is_noop(tmp_path
 
     migrate(connection)
 
-    assert CURRENT_SCHEMA_VERSION == 6
-    assert get_schema_version(connection) == 6
+    assert CURRENT_SCHEMA_VERSION == 7
+    assert get_schema_version(connection) == 7
     assert connection.execute(
         "SELECT value FROM app_settings WHERE key = 'marker'"
     ).fetchone()[0] == "kept"
+
+
+def test_fresh_migration_seeds_only_uibe_scheme_and_sample_semester():
+    connection = connect_database(":memory:")
+
+    migrate(connection)
+
+    schemes = connection.execute(
+        "SELECT name, is_builtin, axis_mode, period_count FROM timetable_schemes"
+    ).fetchall()
+    assert schemes == [("UIBE", 1, "custom_periods", 8)]
+    scheme_id = connection.execute(
+        "SELECT id FROM timetable_schemes WHERE name = 'UIBE'"
+    ).fetchone()[0]
+    periods = connection.execute(
+        """
+        SELECT period_no, start_time, end_time
+        FROM timetable_scheme_periods
+        WHERE scheme_id = ?
+        ORDER BY period_no
+        """,
+        (scheme_id,),
+    ).fetchall()
+    assert periods == [
+        (1, "08:00:00", "09:30:00"),
+        (2, "09:50:00", "11:20:00"),
+        (3, "11:30:00", "12:10:00"),
+        (4, "13:30:00", "15:00:00"),
+        (5, "15:20:00", "16:50:00"),
+        (6, "17:00:00", "17:40:00"),
+        (7, "18:30:00", "20:00:00"),
+        (8, "20:10:00", "20:50:00"),
+    ]
+    assert connection.execute(
+        "SELECT name, is_active, timetable_scheme_id FROM semesters"
+    ).fetchall() == [("样例", 1, scheme_id)]
+
+
+def test_upgrade_normalizes_uibe_duplicate_and_sample_semester_name():
+    connection = connect_database(":memory:")
+    for version in range(1, 7):
+        schema.MIGRATIONS[version](connection)
+    connection.execute(
+        """
+        INSERT INTO timetable_schemes(
+            name, axis_mode, period_count, day_start, day_end,
+            is_builtin, created_at, updated_at
+        ) VALUES ('UIBE', 'custom_periods', 8, NULL, NULL, 0, 'now', 'now')
+        """
+    )
+    canonical_id = connection.execute("SELECT last_insert_rowid()").fetchone()[0]
+    duplicate_id = connection.execute(
+        """
+        INSERT INTO timetable_schemes(
+            name, axis_mode, period_count, day_start, day_end,
+            is_builtin, created_at, updated_at
+        ) VALUES ('UIBE copy', 'custom_periods', 8, NULL, NULL, 0, 'now', 'now')
+        RETURNING id
+        """
+    ).fetchone()[0]
+    periods = [
+        (1, "08:00:00", "09:30:00"),
+        (2, "09:50:00", "11:20:00"),
+        (3, "11:30:00", "12:10:00"),
+        (4, "13:30:00", "15:00:00"),
+        (5, "15:20:00", "16:50:00"),
+        (6, "17:00:00", "17:40:00"),
+        (7, "18:30:00", "20:00:00"),
+        (8, "20:10:00", "20:50:00"),
+    ]
+    connection.executemany(
+        """
+        INSERT INTO timetable_scheme_periods(
+            scheme_id, period_no, start_time, end_time
+        ) VALUES (?, ?, ?, ?)
+        """,
+        [
+            (scheme_id, *row)
+            for scheme_id in (canonical_id, duplicate_id)
+            for row in periods
+        ],
+    )
+    semester_id = connection.execute(
+        """
+        INSERT INTO semesters(
+            name, start_monday, total_weeks, is_active, created_at, updated_at,
+            timetable_scheme_id
+        ) VALUES ('大三上', '2026-08-03', 16, 1, 'now', 'now', ?)
+        RETURNING id
+        """,
+        (canonical_id,),
+    ).fetchone()[0]
+    connection.execute("UPDATE schema_meta SET schema_version = 6")
+    connection.commit()
+
+    migrate(connection)
+
+    assert connection.execute(
+        "SELECT id, name, is_builtin FROM timetable_schemes"
+    ).fetchall() == [(canonical_id, "UIBE", 1)]
+    assert connection.execute(
+        "SELECT name, timetable_scheme_id FROM semesters WHERE id = ?",
+        (semester_id,),
+    ).fetchone() == ("样例", canonical_id)
 
 
 def test_migration_runner_rolls_back_all_ddl_on_failure(tmp_path, monkeypatch):
@@ -76,7 +180,7 @@ def test_existing_v001_database_migrates_to_current_profile_and_timetable_contra
 
     migrate(connection)
 
-    assert get_schema_version(connection) == 6
+    assert get_schema_version(connection) == 7
     assert connection.execute(
         "SELECT 1 FROM pragma_table_info('profiles') WHERE name = 'grid_columns'"
     ).fetchone() is not None
@@ -94,7 +198,7 @@ def test_existing_v001_database_migrates_to_current_profile_and_timetable_contra
     ).fetchone() is None
 
 
-def test_existing_scheme_one_is_restored_as_scheme_one_on_upgrade():
+def test_existing_scheme_one_is_restored_as_uibe_on_upgrade():
     connection = connect_database(":memory:")
     apply_v001(connection)
     connection.executemany(
@@ -119,11 +223,11 @@ def test_existing_scheme_one_is_restored_as_scheme_one_on_upgrade():
     row = connection.execute(
         "SELECT name, is_builtin FROM timetable_schemes"
     ).fetchone()
-    assert row[0] == "方案1"
+    assert row[0] == "UIBE"
     assert row[1] == 1
 
 
-def test_existing_default_scheme_is_restored_to_scheme_one_on_upgrade():
+def test_existing_default_scheme_is_restored_to_uibe_on_upgrade():
     connection = connect_database(":memory:")
     apply_v001(connection)
     connection.executemany(
@@ -151,8 +255,8 @@ def test_existing_default_scheme_is_restored_to_scheme_one_on_upgrade():
         "SELECT id, name FROM timetable_schemes WHERE is_builtin = 1"
     ).fetchone()
     assert after[0] == before[0]
-    assert after[1] == "方案1"
-    assert get_schema_version(connection) == 6
+    assert after[1] == "UIBE"
+    assert get_schema_version(connection) == 7
 
 
 def test_existing_scheme_one_replaces_generated_default_without_losing_its_periods():
@@ -225,7 +329,7 @@ def test_existing_scheme_one_replaces_generated_default_without_losing_its_perio
         "SELECT timetable_scheme_id FROM semesters WHERE id = ?", (semester_id,)
     ).fetchone()[0]
 
-    assert builtins == [(scheme_one, "方案1")]
+    assert builtins == [(scheme_one, "UIBE")]
     assert periods == [
         (1, "07:00:00", "08:00:00"),
         (2, "08:10:00", "09:10:00"),
@@ -237,7 +341,7 @@ def test_existing_scheme_one_replaces_generated_default_without_losing_its_perio
 def test_future_schema_version_is_rejected(tmp_path):
     connection = connect_database(tmp_path / "deskboard.db")
     migrate(connection)
-    connection.execute("UPDATE schema_meta SET schema_version = 7 WHERE singleton = 1")
+    connection.execute("UPDATE schema_meta SET schema_version = 8 WHERE singleton = 1")
     connection.commit()
 
     with pytest.raises(MigrationError, match="newer"):
@@ -271,7 +375,7 @@ def test_current_version_with_missing_tables_is_rejected(tmp_path):
         "singleton INTEGER PRIMARY KEY, schema_version INTEGER NOT NULL)"
     )
     connection.execute(
-        "INSERT INTO schema_meta(singleton, schema_version) VALUES (1, 5)"
+        "INSERT INTO schema_meta(singleton, schema_version) VALUES (1, 7)"
     )
     connection.commit()
 

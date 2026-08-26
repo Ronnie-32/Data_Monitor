@@ -67,7 +67,7 @@ def test_invalid_custom_rows_never_activate(periods):
             period_count=2,
             periods=periods,
         )
-    assert target.list_timetable_schemes() == []
+    assert [scheme.name for scheme in target.list_timetable_schemes()] == ["UIBE"]
 
 
 def test_uniform_scheme_has_full_day_default_and_no_period_semantics():

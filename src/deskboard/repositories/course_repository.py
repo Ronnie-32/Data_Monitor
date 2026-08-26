@@ -629,7 +629,7 @@ class CourseRepository:
         )
         if existing is None:
             self.create_timetable_scheme(
-                name="方案1",
+                name="UIBE",
                 axis_mode="custom_periods",
                 period_count=len(period_rows),
                 day_start=None,

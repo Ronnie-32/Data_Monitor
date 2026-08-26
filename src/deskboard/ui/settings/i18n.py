@@ -262,6 +262,7 @@ _TEXT_PAIRS = {
     "Unable to open log folder": "无法打开日志文件夹",
     "Refresh ": "刷新",
     "China indices": "中国指数",
+    "US indices": "美国指数",
     "unknown": "未知",
     "disabled": "已禁用",
     "never": "未刷新",

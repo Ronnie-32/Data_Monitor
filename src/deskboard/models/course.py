@@ -8,7 +8,7 @@ from typing import Literal
 
 TimetableSchemeAxisMode = Literal["custom_periods", "uniform_day"]
 
-DEFAULT_TIMETABLE_SCHEME_NAME = "方案1"
+DEFAULT_TIMETABLE_SCHEME_NAME = "UIBE"
 
 # ``datetime.time`` cannot represent 24:00.  This sentinel keeps comparisons
 # and arithmetic monotonic while the persistence/presentation helpers render

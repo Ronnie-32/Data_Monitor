@@ -23,7 +23,7 @@ def test_fresh_schema_has_scheme_tables_and_no_legacy_class_periods():
         )
     }
 
-    assert get_schema_version(connection) == 6
+    assert get_schema_version(connection) == 7
     assert "class_periods" not in tables
     assert {"timetable_schemes", "timetable_scheme_periods"} <= tables
     assert "timetable_scheme_id" in {

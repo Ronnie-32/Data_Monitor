@@ -26,6 +26,14 @@ def _set_period_row(page: CoursePage, row: int, start: int, end: int) -> None:
     end_edit.setTime(QTime(end, 0))
 
 
+def _select_list_item_by_id(widget, item_id: int) -> None:
+    for row in range(widget.count()):
+        if widget.item(row).data(Qt.ItemDataRole.UserRole) == item_id:
+            widget.setCurrentRow(row)
+            return
+    raise AssertionError(f"List item {item_id} was not found")
+
+
 def test_profile_theme_preview_updates_settings_without_persisting_until_save():
     app = QApplication.instance() or QApplication([])
     connection = sqlite3.connect(":memory:")
@@ -81,9 +89,9 @@ def test_courses_page_lists_reusable_schemes_and_binds_the_selected_semester():
     second = courses.create_semester("Fall", date(2026, 9, 7), 16)
 
     page = CoursePage(courses)
-    assert page.scheme_list.count() == 1
+    assert page.scheme_list.count() == 2
     assert page.semester_scheme_combo.findData(scheme.id) >= 0
-    page.semester_list.setCurrentRow(1)
+    _select_list_item_by_id(page.semester_list, second.id)
     page.semester_scheme_combo.setCurrentIndex(
         page.semester_scheme_combo.findData(scheme.id)
     )
@@ -107,7 +115,7 @@ def test_custom_period_editor_has_non_overlapping_defaults_and_save_round_trip()
 
     dashboard_updates = []
     page = CoursePage(courses, on_changed=lambda: dashboard_updates.append(True))
-    page.scheme_list.setCurrentRow(0)
+    _select_list_item_by_id(page.scheme_list, scheme.id)
     page.scheme_axis_mode_combo.setCurrentIndex(
         page.scheme_axis_mode_combo.findData("custom_periods")
     )
@@ -201,12 +209,12 @@ def test_new_default_scheme_uses_default_name_and_can_be_saved():
     page = CoursePage(courses)
 
     assert page.create_scheme() is True
-    created = courses.list_timetable_schemes()[0]
-    assert created.name == "方案1"
+    created = courses.list_timetable_schemes()[-1]
+    assert created.name == "UIBE"
 
-    page.scheme_name_edit.setText("方案1")
+    page.scheme_name_edit.setText("UIBE")
     assert page.save_scheme() is True
-    assert courses.require_timetable_scheme(created.id).name == "方案1"
+    assert courses.require_timetable_scheme(created.id).name == "UIBE"
     page.deleteLater()
     connection.close()
     del app
@@ -226,12 +234,12 @@ def test_semester_selection_refreshes_scheme_binding_editor():
     courses.bind_semester_timetable_scheme(second.id, second_scheme.id)
 
     page = CoursePage(courses)
-    page.semester_list.setCurrentRow(1)
+    _select_list_item_by_id(page.semester_list, second.id)
     assert page.semester_scheme_combo.currentData() == second_scheme.id
     assert page.scheme_list.currentItem().data(Qt.ItemDataRole.UserRole) == second_scheme.id
     assert page.scheme_name_edit.text() == "Second"
 
-    page.semester_list.setCurrentRow(0)
+    _select_list_item_by_id(page.semester_list, first.id)
     assert page.semester_scheme_combo.currentData() == first_scheme.id
     assert page.scheme_name_edit.text() == "First"
     page.deleteLater()

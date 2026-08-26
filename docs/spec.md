@@ -758,16 +758,20 @@ equal visual guide bands in this mode and does not create artificial school
 period semantics or labels. Course blocks are still positioned by their real
 start/end times.
 
-On a fresh installation no school-period scheme is active until the user
-chooses and saves one; the timetable then shows the existing compact
-configure-first state rather than fabricated bounds. During migration, a
-complete legacy `class_periods` set is copied unchanged into a built-in
-  `custom_periods` scheme named `方案1` and existing semesters are bound to it.
-  An incomplete legacy set remains unconfigured. An upgrade also normalizes the
-  previous built-in labels `Default方案` and `Legacy 8 periods` to `方案1`;
-the built-in scheme remains editable and savable. After migration, new reads
-and writes use the scheme tables; legacy `class_periods` is migration input
-only.
+On a fresh installation, DeskBoard seeds exactly one built-in editable sample
+scheme named `UIBE`, with eight custom period rows, and one active sample
+semester named `样例` bound to it. This is starter data for the first-run
+experience, not a claim that the displayed periods are an official timetable;
+users may edit, rename, delete, or bind schemes through Settings. During
+migration, a complete legacy `class_periods` set is copied unchanged into the
+same built-in `UIBE` scheme and existing semesters are bound to it. An
+incomplete legacy set still receives the sample UIBE defaults. An upgrade
+normalizes the previous generated labels `方案1`, `Default方案`, and
+`Legacy 8 periods` to `UIBE`, changes the legacy sample semester title `大三上`
+to `样例`, and removes only an unbound `UIBE copy` whose axis data is identical
+to UIBE. Other user-created schemes and semester titles remain untouched.
+After migration, new reads and writes use the scheme tables; legacy
+`class_periods` is migration input only.
 
 Courses are not forced to align to period boundaries in any axis mode.
 

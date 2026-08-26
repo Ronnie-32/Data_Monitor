@@ -61,7 +61,21 @@ def add_recurring(service, semester_id, **overrides):
     return service.create_recurring_course(**values)
 
 
+def uibe_periods() -> list[ClassPeriod]:
+    return [
+        ClassPeriod(1, time(8), time(9, 30)),
+        ClassPeriod(2, time(9, 50), time(11, 20)),
+        ClassPeriod(3, time(11, 30), time(12, 10)),
+        ClassPeriod(4, time(13, 30), time(15)),
+        ClassPeriod(5, time(15, 20), time(16, 50)),
+        ClassPeriod(6, time(17), time(17, 40)),
+        ClassPeriod(7, time(18, 30), time(20)),
+        ClassPeriod(8, time(20, 10), time(20, 50)),
+    ]
+
+
 def test_active_semester_allows_zero_or_one_but_not_two(service):
+    service.set_active_semester(None)
     assert service.get_active_semester() is None
     first = service.create_semester(
         name="春季", start_monday=date(2026, 2, 23), total_weeks=16
@@ -101,11 +115,11 @@ def test_teaching_week_is_monday_based_and_excludes_outside_dates(service):
     assert service.get_teaching_week(semester.start_monday + timedelta(days=14)) is None
 
 
-def test_fresh_period_configuration_is_empty_and_valid_periods_are_exactly_one_to_eight(
+def test_default_period_configuration_is_uibe_and_valid_periods_are_exactly_one_to_eight(
     service,
 ):
-    assert service.get_class_periods() == []
-    assert service.has_configured_class_periods() is False
+    assert service.get_class_periods() == uibe_periods()
+    assert service.has_configured_class_periods() is True
 
     periods = [
         ClassPeriod(period_no=index, start_time=time(7 + index), end_time=time(8 + index))
@@ -133,8 +147,8 @@ def test_fresh_period_configuration_is_empty_and_valid_periods_are_exactly_one_t
 def test_invalid_period_sets_are_rejected_without_partial_activation(service, periods):
     with pytest.raises(ValueError):
         service.save_class_periods(periods)
-    assert service.get_class_periods() == []
-    assert service.has_configured_class_periods() is False
+    assert service.get_class_periods() == uibe_periods()
+    assert service.has_configured_class_periods() is True
 
 
 def test_recurring_course_occurs_every_week_on_matching_weekday(service):

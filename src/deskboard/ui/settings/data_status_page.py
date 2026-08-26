@@ -245,6 +245,7 @@ def _text_or_dash(value: object) -> str:
 def _group_label(group: str, language: str = "zh_CN") -> str:
     source = {
         "indices": "China indices",
+        "us_indices": "US indices",
         "weather": "Weather",
         "gold": "Gold",
         "fx": "FX",

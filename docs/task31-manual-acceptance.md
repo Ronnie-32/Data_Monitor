@@ -6,14 +6,18 @@ Dashboard QWebEngine page, window hit-testing, and a restart.
 
 ## Timetable schemes
 
-1. Open Settings → Courses and create two semesters and two reusable schemes.
-2. Select each semester in the list. The timetable-scheme combo, selected
+1. On a fresh or migrated sample database, confirm there is one starter scheme
+   named `UIBE` and one active sample semester named `样例`; the UIBE scheme is
+   bound to that semester and its eight editable period rows are visible.
+2. Open Settings → Courses and create two additional semesters and two
+   reusable schemes.
+3. Select each semester in the list. The timetable-scheme combo, selected
    scheme name, axis mode, count, and period rows must follow the selected
    semester; binding a scheme must immediately refresh that view.
-3. Bind one scheme to both semesters, switch the active semester, then switch
+4. Bind one scheme to both semesters, switch the active semester, then switch
    Profile. The selected scheme and its rows must remain unchanged; changing a
    Profile must not change timetable configuration.
-4. Create a custom scheme with a non-eight count, gaps, and arbitrary actual
+5. Create a custom scheme with a non-eight count, gaps, and arbitrary actual
    times. Save it, open the weekly timetable, and confirm the first/last bounds,
    labels, and course blocks use the saved times. Try missing, duplicate,
    overlapping, and out-of-range rows; invalid edits must not become active.
@@ -21,18 +25,18 @@ Dashboard QWebEngine page, window hit-testing, and a restart.
    duplicate row-number strip), no row/control overlap, and the error text must
    appear beside the Save button when validation fails. A valid save must also
    refresh the open Dashboard timetable immediately.
-5. Select Uniform day, first accept the default `00:00–24:00`, then save a
+6. Select Uniform day, first accept the default `00:00–24:00`, then save a
    custom range and guide count. Confirm guide bands are equal visual guides,
    carry no artificial period labels, and courses/Todos remain at their actual
    clock times. Items wholly outside the range must be absent.
-6. Delete a bound scheme. Cancel the first confirmation; then confirm the
+7. Delete a bound scheme. Cancel the first confirmation; then confirm the
    deletion. Affected semesters must become unbound and the timetable must show
    configure-first without invented school times. Today Agenda must still work.
-7. Confirm the semester, recurring-course, one-off-course, and scheme lists
+8. Confirm the semester, recurring-course, one-off-course, and scheme lists
    each occupy about six to seven rows rather than expanding through the empty
    page area. Long entries should stay on one line with right-side ellipsis;
    hovering shows the complete text. On a migrated database, the built-in entry
-   is named `方案1`; edit a period, click Save scheme, and confirm the existing
+   is named `UIBE`; edit a period, click Save scheme, and confirm the existing
    period data is retained after refresh.
 
 ## Settings preview

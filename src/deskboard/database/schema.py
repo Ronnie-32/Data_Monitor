@@ -11,8 +11,9 @@ from deskboard.database.migrations.v003_profile_font import apply_v003
 from deskboard.database.migrations.v004_timetable_schemes import apply_v004
 from deskboard.database.migrations.v005_timetable_default_name import apply_v005
 from deskboard.database.migrations.v006_restore_scheme_one_name import apply_v006
+from deskboard.database.migrations.v007_uibe_defaults import apply_v007
 
-CURRENT_SCHEMA_VERSION = 6
+CURRENT_SCHEMA_VERSION = 7
 
 LOGICAL_TABLES = frozenset(
     {
@@ -60,6 +61,7 @@ MIGRATIONS: dict[int, Callable[[sqlite3.Connection], None]] = {
     4: apply_v004,
     5: apply_v005,
     6: apply_v006,
+    7: apply_v007,
 }
 
 

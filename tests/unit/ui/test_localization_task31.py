@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from deskboard.presentation.dashboard_state import present_dashboard_state
+from deskboard.ui.settings.data_status_page import _group_label
 from deskboard.ui.settings.i18n import translate_text
 
 
@@ -34,6 +35,11 @@ def test_task31_chinese_translation_covers_common_native_ui_and_dynamic_mode_tex
 
     for source, chinese in expected.items():
         assert translate_text(source, "zh_CN") == chinese
+
+
+def test_task31_data_status_translates_us_indices_group_label():
+    assert _group_label("us_indices", "zh_CN") == "美国指数"
+    assert _group_label("us_indices", "en_US") == "US indices"
 
 
 def test_task31_dashboard_snapshot_carries_the_persisted_ui_language():
