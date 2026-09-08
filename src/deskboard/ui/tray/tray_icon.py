@@ -48,7 +48,9 @@ class TrayIcon(QSystemTrayIcon):
         application = QApplication.instance()
         if application is None:
             raise RuntimeError("TrayIcon requires an active QApplication")
-        icon = application.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
+        icon = application.windowIcon()
+        if icon.isNull():
+            icon = application.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon)
         super().__init__(icon)
         self.setToolTip("DeskBoard")
         self._show_settings = show_settings

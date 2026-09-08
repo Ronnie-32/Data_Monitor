@@ -35,6 +35,7 @@ def test_tray_source_has_left_click_settings_and_no_forbidden_actions():
     source = Path("src/deskboard/ui/tray/tray_icon.py").read_text(encoding="utf-8")
 
     assert "ActivationReason.Trigger" in source
+    assert "application.windowIcon()" in source
     assert "show_settings" in source
     assert "self._menu = QMenu()" in source
     assert "for description in APPROVED_TRAY_ACTIONS" in source

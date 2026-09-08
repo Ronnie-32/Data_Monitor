@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 
 from deskboard.app.application import DeskBoardApplication, as_qt_application
+from deskboard.app.icon import deskboard_icon_path
 from deskboard.app.single_instance import InstanceRole, SingleInstanceGuard
 from deskboard.app.startup import DayRolloverScheduler
 from deskboard.infrastructure.logging_setup import configure_logging
@@ -32,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv if argv is None else argv)
     runtime = initialize_runtime()
     from PySide6.QtCore import QTimer
+    from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
 
     from deskboard.database.connection import connect_database
@@ -67,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
 
     qt_application = QApplication.instance() or QApplication(arguments)
     qt_application.setApplicationName("DeskBoard")
+    qt_application.setWindowIcon(QIcon(str(deskboard_icon_path())))
     application_holder: list[DeskBoardApplication] = []
     instance_guard = SingleInstanceGuard(
         SINGLE_INSTANCE_SERVER_NAME,

@@ -10,6 +10,7 @@ AppId={{E8B7E1E3-44E4-4AA7-9E19-7E3F9D2AF3D2}
 AppName=DeskBoard
 AppVersion={#AppVersion}
 AppPublisher=DeskBoard
+SetupIconFile=..\src\deskboard\assets\deskboard-icon.ico
 DefaultDirName={localappdata}\Programs\DeskBoard
 DefaultGroupName=DeskBoard
 DisableProgramGroupPage=yes

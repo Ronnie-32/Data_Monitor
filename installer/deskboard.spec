@@ -8,6 +8,8 @@ from pathlib import Path
 ROOT = Path(SPECPATH).resolve().parent
 SOURCE_ROOT = ROOT / "src"
 WEB_ROOT = SOURCE_ROOT / "deskboard" / "ui" / "dashboard" / "web"
+ASSET_ROOT = SOURCE_ROOT / "deskboard" / "assets"
+ICON_PATH = ASSET_ROOT / "deskboard-icon.ico"
 
 
 def web_data_files() -> list[tuple[str, str]]:
@@ -20,6 +22,15 @@ def web_data_files() -> list[tuple[str, str]]:
         destination = Path("deskboard/ui/dashboard/web") / relative_parent
         files.append((str(source), destination.as_posix()))
     return files
+
+
+def app_asset_files() -> list[tuple[str, str]]:
+    """Bundle the runtime icon beside the packaged deskboard package."""
+    return [
+        (str(source), "deskboard/assets")
+        for source in ASSET_ROOT.iterdir()
+        if source.is_file()
+    ]
 
 
 conda_bin = Path(sys.base_prefix) / "Library" / "bin"
@@ -45,7 +56,7 @@ a = Analysis(
     [str(SOURCE_ROOT / "deskboard" / "__main__.py")],
     pathex=[str(SOURCE_ROOT)],
     binaries=conda_binaries,
-    datas=web_data_files(),
+    datas=[*web_data_files(), *app_asset_files()],
     hiddenimports=[
         "PySide6.QtWebChannel",
         "PySide6.QtWebEngineCore",
@@ -64,6 +75,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="DeskBoard",
+    icon=str(ICON_PATH),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
