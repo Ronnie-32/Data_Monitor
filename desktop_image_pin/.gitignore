@@ -1,0 +1,10 @@
+# Personal images and local state must never be published.
+settings.json
+*.svg
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.webp
+__pycache__/
+*.py[cod]
